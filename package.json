@@ -16,7 +16,7 @@
     "@supabase/supabase-js": "^2.75.0",
     "drizzle-orm": "^0.44.6",
     "framer-motion": "^12.23.25",
-    "next": "15.5.5",
+    "next": "15.5.9",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
     "react": "19.1.0",
@@ -35,7 +35,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.5",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
   }
 }
