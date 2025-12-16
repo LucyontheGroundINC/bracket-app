@@ -1,0 +1,11 @@
+### Get all tournaments
+GET http://localhost:3000/api/tournaments
+
+### Create a new tournament
+POST http://localhost:3000/api/tournaments
+Content-Type: application/json
+
+{
+  "name": "March Madness",
+  "year": 2025
+}

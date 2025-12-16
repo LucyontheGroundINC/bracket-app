@@ -1,0 +1,41 @@
+{
+  "name": "bracket-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint",
+    "drizzle:generate": "drizzle-kit generate",
+    "drizzle:push": "drizzle-kit push",
+    "drizzle:studio": "drizzle-kit studio",
+    "migrate": "ts-node scripts/runMigrations.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.75.0",
+    "drizzle-orm": "^0.44.6",
+    "framer-motion": "^12.23.25",
+    "next": "15.5.5",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.7",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-hot-toast": "^2.6.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.19.22",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.8",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "ts-node": "^10.9.2"
+  }
+}

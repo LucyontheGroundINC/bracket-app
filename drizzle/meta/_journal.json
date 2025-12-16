@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1760671886871,
+      "tag": "0000_nifty_pet_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1760672212278,
+      "tag": "0001_dashing_captain_midlands",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761189512087,
+      "tag": "0002_round_leopardon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1761615953657,
+      "tag": "0003_sudden_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1761621021539,
+      "tag": "0004_lazy_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1761791670495,
+      "tag": "0005_first_pestilence",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1762922996588,
+      "tag": "0006_greedy_red_skull",
+      "breakpoints": true
+    }
+  ]
+}
