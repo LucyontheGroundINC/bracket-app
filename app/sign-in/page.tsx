@@ -7,13 +7,23 @@ import { syncUserToDB } from "@/lib/api";
 
 type Mode = "signin" | "signup";
 
+function getNameFromUser(u: any): string | null {
+  const meta =
+    (u?.user_metadata?.display_name as string | undefined) ??
+    (u?.user_metadata?.full_name as string | undefined) ??
+    (u?.user_metadata?.name as string | undefined) ??
+    null;
+
+  return meta && meta.trim().length ? meta.trim() : null;
+}
+
 export default function SignInPage() {
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState(""); // required for signup
+  const [displayName, setDisplayName] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -25,27 +35,17 @@ export default function SignInPage() {
     });
   }, [router]);
 
-  // Listen for auth changes; when signed in, sync user and redirect
+  // Auth listener (covers refresh, other tabs, etc.)
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_IN" && session?.user) {
           const u = session.user;
-
-          // Use DB display name if you collect it at signup,
-          // otherwise fall back to metadata (or null).
-          const nameFromMeta =
-            (u.user_metadata?.display_name as string | undefined) ??
-            (u.user_metadata?.full_name as string | undefined) ??
-            (u.user_metadata?.name as string | undefined) ??
-            null;
-
           await syncUserToDB({
             id: u.id,
             email: u.email!,
-            displayName: nameFromMeta,
+            displayName: getNameFromUser(u),
           });
-
           router.replace("/dashboard");
         }
       }
@@ -58,9 +58,9 @@ export default function SignInPage() {
     e.preventDefault();
     setMessage(null);
 
-    if (!email || !password) return;
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) return;
 
-    // Require display name on signup
     if (mode === "signup" && !displayName.trim()) {
       setMessage("Please enter a display name.");
       return;
@@ -70,11 +70,12 @@ export default function SignInPage() {
       setLoading(true);
 
       if (mode === "signup") {
+        setMessage("Creating account…");
+
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: cleanEmail,
           password,
           options: {
-            // store display name in auth metadata (handy fallback)
             data: { display_name: displayName.trim() },
           },
         });
@@ -84,30 +85,55 @@ export default function SignInPage() {
           return;
         }
 
-        // If email confirmations are OFF, you’ll be signed in immediately
-        // and the onAuthStateChange handler will sync + redirect.
-        // If confirmations are ON, session may be null until email is confirmed.
-        if (!data.session) {
-          setMessage(
-            "Account created! Check your email to confirm, then sign in."
-          );
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        // If confirmations are OFF, session is usually present immediately.
+        // If present, sync + redirect right away (faster than waiting on the listener).
+        if (data.session?.user) {
+          const u = data.session.user;
+          setMessage("Account created — signing you in…");
 
-        if (error) {
-          setMessage(error.message);
+          await syncUserToDB({
+            id: u.id,
+            email: u.email!,
+            displayName: getNameFromUser(u),
+          });
+
+          router.replace("/dashboard");
           return;
         }
 
-        // redirect will happen via onAuthStateChange
+        // If confirmations are ON (or provider behavior returns no session), give a neutral message.
+        setMessage(
+          "Account created. If you don’t land in the dashboard, try signing in."
+        );
+        return;
       }
+
+      // SIGN IN
+      setMessage("Signing in…");
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      // Sync immediately (again: faster than relying only on listener)
+      if (data.session?.user) {
+        const u = data.session.user;
+        await syncUserToDB({
+          id: u.id,
+          email: u.email!,
+          displayName: getNameFromUser(u),
+        });
+      }
+
+      router.replace("/dashboard");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Something went wrong.";
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
       setMessage(msg);
     } finally {
       setLoading(false);
@@ -116,7 +142,9 @@ export default function SignInPage() {
 
   async function handleForgotPassword() {
     setMessage(null);
-    if (!email) {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail) {
       setMessage("Enter your email first, then click Forgot password.");
       return;
     }
@@ -124,8 +152,7 @@ export default function SignInPage() {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // you can later create a dedicated reset page; this at least triggers the email
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: `${window.location.origin}/sign-in`,
       });
 
@@ -134,10 +161,9 @@ export default function SignInPage() {
         return;
       }
 
-      setMessage("Password reset email sent. Check your inbox.");
+      setMessage("If an account exists for that email, you’ll receive a reset link.");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Something went wrong.";
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
       setMessage(msg);
     } finally {
       setLoading(false);
@@ -214,11 +240,7 @@ export default function SignInPage() {
           disabled={loading}
           className="rounded bg-black text-white px-4 py-2 disabled:opacity-60"
         >
-          {loading
-            ? "Working..."
-            : mode === "signin"
-            ? "Sign in"
-            : "Create account"}
+          {loading ? "Working..." : mode === "signin" ? "Sign in" : "Create account"}
         </button>
 
         {mode === "signin" && (
