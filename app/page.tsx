@@ -51,7 +51,8 @@ export default function HomePage() {
           </Link>
           {!isAuthed && (
             <Link
-              href="/sign-up"
+              href="/sign-in?mode=signup"
+
               className="inline-flex items-center justify-center px-6 py-3 rounded-full text-sm font-semibold bg-white/90 text-[#0A2041] border border-[#F5B8B0] hover:bg-white transition"
             >
               Create an account

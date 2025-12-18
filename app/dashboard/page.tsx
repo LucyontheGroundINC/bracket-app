@@ -143,13 +143,15 @@ export default function DashboardPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 <Link
-                  href="/bracket"
+                  href="/dashboard/brackets"
+
                   className="inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a] transition"
                 >
                   Go to My Bracket
                 </Link>
                 <Link
-                  href="/leaderboard"
+                  href="/dashboard/leaderboard"
+
                   className="inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0] transition"
                 >
                   View Leaderboard
@@ -166,7 +168,8 @@ export default function DashboardPage() {
                 <li className="flex justify-between items-center gap-2">
                   <span>See the full bracket layout</span>
                   <Link
-                    href="/bracket"
+                    href="/dashboard/brackets"
+
                     className="text-[#CA4C4C] hover:underline font-semibold"
                   >
                     Open bracket
@@ -175,7 +178,8 @@ export default function DashboardPage() {
                 <li className="flex justify-between items-center gap-2">
                   <span>Check your rank on the leaderboard</span>
                   <Link
-                    href="/leaderboard"
+                    href="/dashboard/leaderboard"
+
                     className="text-[#CA4C4C] hover:underline font-semibold"
                   >
                     Leaderboard
