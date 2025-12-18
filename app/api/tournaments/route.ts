@@ -2,13 +2,29 @@ import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { tournaments } from "@/db/schema";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // GET  →  list all tournaments
 export async function GET() {
   try {
     const rows = await db.select().from(tournaments).orderBy(tournaments.id);
     return NextResponse.json(rows);
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e.message) }, { status: 500 });
+  } catch (e: unknown) {
+    const err = e as any;
+    console.error("[tournaments GET] error:", err);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        marker: "tournaments-v2",
+        message: err?.message ?? String(err),
+        code: err?.code ?? null,
+        detail: err?.cause?.detail ?? null,
+        cause: err?.cause?.message ?? err?.cause ?? null,
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -16,6 +32,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
     const [newTournament] = await db
       .insert(tournaments)
       .values({
@@ -25,7 +42,20 @@ export async function POST(req: Request) {
       .returning();
 
     return NextResponse.json(newTournament);
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e.message) }, { status: 500 });
+  } catch (e: unknown) {
+    const err = e as any;
+    console.error("[tournaments POST] error:", err);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        marker: "tournaments-post-v2",
+        message: err?.message ?? String(err),
+        code: err?.code ?? null,
+        detail: err?.cause?.detail ?? null,
+        cause: err?.cause?.message ?? err?.cause ?? null,
+      },
+      { status: 500 }
+    );
   }
 }
