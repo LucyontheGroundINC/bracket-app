@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { syncUserToDB } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 
 type Mode = "signin" | "signup";
 
@@ -19,8 +20,20 @@ function getNameFromUser(u: any): string | null {
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [mode, setMode] = useState<Mode>("signin");
+
+  const initialMode =
+  searchParams.get("mode") === "signup" ? "signup" : "signin";
+
+const [mode, setMode] = useState<Mode>(initialMode);
+useEffect(() => {
+  const urlMode =
+    searchParams.get("mode") === "signup" ? "signup" : "signin";
+
+  setMode(urlMode);
+}, [searchParams]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
