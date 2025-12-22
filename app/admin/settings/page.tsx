@@ -77,33 +77,24 @@ export default function AdminSettingsPage() {
   }, []);
 
   // ------------------ Load tournaments ------------------
-  const refreshTournaments = async () => {
-    setLoadingTournaments(true);
-    try {
-      const res = await fetch('/api/tournaments', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load tournaments');
+const refreshTournaments = async () => {
+  setLoadingTournaments(true);
+  try {
+    const res = await fetch("/api/tournaments", { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to load tournaments");
 
-      const json: unknown = await res.json();
+    const json = await res.json();
 
-      if (!Array.isArray(json)) {
-        console.error('[admin/settings] /api/tournaments did not return an array:', json);
-        setTournaments([]);
-        return;
-      }
-
-      setTournaments(json as Tournament[]);
-    } catch (err) {
-      console.error(err);
-      setTournaments([]);
-    } finally {
-      setLoadingTournaments(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    refreshTournaments();
-  }, [isAdmin]);
+    // ✅ normalize: API might return Tournament[] OR a single Tournament
+    const list = Array.isArray(json) ? json : json ? [json] : [];
+    setTournaments(list);
+  } catch (err) {
+    console.error(err);
+    setTournaments([]);
+  } finally {
+    setLoadingTournaments(false);
+  }
+};
 
   // ------------------ Load lock settings when tournament changes ------------------
   useEffect(() => {

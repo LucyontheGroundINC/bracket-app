@@ -1,40 +1,49 @@
-export const runtime = "nodejs";
-
-import { NextRequest, NextResponse } from "next/server";
+// app/api/tournaments/active/route.ts
+import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { tournaments } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
-export async function PUT(_req: NextRequest, context: any) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function toDto(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    year: row.year ?? null,
+    isActive: row.isActive ?? null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    isLockedManual: row.isLockedManual ?? null,
+    lockAt: row.lockAt ? new Date(row.lockAt).toISOString() : null,
+  };
+}
+
+export async function GET() {
   try {
-    const { id } = context.params;
-    const numericId = Number(id);
+    const rows = await db
+      .select()
+      .from(tournaments)
+      .where(eq(tournaments.isActive, true))
+      .orderBy(desc(tournaments.createdAt))
+      .limit(1);
 
-    if (Number.isNaN(numericId)) {
-      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-    }
+    return NextResponse.json(rows?.[0] ? toDto(rows[0]) : null);
+  } catch (e: unknown) {
+    const err = e as any;
+    console.error("[tournaments/active] error:", err);
 
-    // Deactivate all tournaments
-    await db.update(tournaments).set({ isActive: false });
-
-    // Activate selected tournament
-    const updated = await db
-      .update(tournaments)
-      .set({ isActive: true })
-      .where(eq(tournaments.id, numericId))
-      .returning();
-
-    if (!updated.length) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(updated[0]);
-  } catch (err: any) {
-    console.error("PUT /api/tournaments/[id]/activate failed:", err);
     return NextResponse.json(
-      { error: err?.message ?? String(err) },
+      {
+        ok: false,
+        marker: "tournaments-active-v3",
+        message: err?.message ?? String(err),
+        code: err?.code ?? null,
+        detail: err?.detail ?? null,
+        hint: err?.hint ?? null,
+        cause: err?.cause?.message ?? err?.cause ?? null,
+      },
       { status: 500 }
     );
   }
 }
-
