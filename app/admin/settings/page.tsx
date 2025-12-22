@@ -89,8 +89,15 @@ const refreshTournaments = async () => {
       return;
     }
 
+    // guarantee array
     const list = Array.isArray(json) ? json : json ? [json] : [];
     setTournaments(list);
+
+    // optional: auto-select the active tournament if none selected
+    if (selectedTournamentId === "" && list.length > 0) {
+      const active = list.find((t: any) => t?.isActive) ?? list[0];
+      setSelectedTournamentId(active?.id ?? "");
+    }
   } catch (err) {
     console.error("Error loading tournaments:", err);
     setTournaments([]);
@@ -98,6 +105,7 @@ const refreshTournaments = async () => {
     setLoadingTournaments(false);
   }
 };
+
 
 
   // ------------------ Load lock settings when tournament changes ------------------
@@ -483,6 +491,7 @@ const refreshTournaments = async () => {
 const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t) => t.isActive);
 
 
+
   // ------------------ Render ------------------
   if (isAdmin === null) {
     return (
@@ -565,7 +574,8 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                 className="bg-[#FDF3EE] border border-[#F5B8B0] rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Select tournament…</option>
-                {tournaments.map((t) => (
+                {(Array.isArray(tournaments) ? tournaments : []).map((t) => (
+
                   <option key={t.id} value={t.id}>
                     {t.name} {t.year ? `(${t.year})` : ''} {t.isActive ? '✅ Active' : ''}
                   </option>
@@ -736,6 +746,15 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                   <div className="grid md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs mb-1 text-[#0A2041]/70">Region</label>
+                      <div className="text-[11px] text-[#0A2041]/70">
+  <div>loadingTournaments: {String(loadingTournaments)}</div>
+  <div>tournaments isArray: {String(Array.isArray(tournaments))}</div>
+  <div>tournaments length: {Array.isArray(tournaments) ? tournaments.length : "n/a"}</div>
+  <pre className="mt-2 whitespace-pre-wrap break-words bg-white/70 border border-[#F5B8B0] rounded-lg p-2">
+    {JSON.stringify(tournaments, null, 2)}
+  </pre>
+</div>
+
                       <select
                         value={teamRegion}
                         onChange={(e) => setTeamRegion(e.target.value)}
