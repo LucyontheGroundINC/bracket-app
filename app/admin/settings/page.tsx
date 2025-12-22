@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
@@ -80,12 +80,21 @@ export default function AdminSettingsPage() {
   const refreshTournaments = async () => {
     setLoadingTournaments(true);
     try {
-      const res = await fetch('/api/tournaments');
+      const res = await fetch('/api/tournaments', { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to load tournaments');
-      const json = await res.json();
-      setTournaments(json || []);
+
+      const json: unknown = await res.json();
+
+      if (!Array.isArray(json)) {
+        console.error('[admin/settings] /api/tournaments did not return an array:', json);
+        setTournaments([]);
+        return;
+      }
+
+      setTournaments(json as Tournament[]);
     } catch (err) {
       console.error(err);
+      setTournaments([]);
     } finally {
       setLoadingTournaments(false);
     }
@@ -94,7 +103,6 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (!isAdmin) return;
     refreshTournaments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // ------------------ Load lock settings when tournament changes ------------------
@@ -106,8 +114,11 @@ export default function AdminSettingsPage() {
         return;
       }
       try {
-        const res = await fetch(`/api/tournaments/${selectedTournamentId}`);
+        const res = await fetch(`/api/tournaments/${selectedTournamentId}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) return;
+
         const t: Tournament = await res.json();
 
         if (t.lockAt) {
@@ -139,10 +150,20 @@ export default function AdminSettingsPage() {
       }
       setLoadingTeams(true);
       try {
-        const res = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`);
+        const res = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) throw new Error('Failed to load teams');
-        const json = await res.json();
-        setTeams(json || []);
+
+        const json: unknown = await res.json();
+
+        if (!Array.isArray(json)) {
+          console.error('[admin/settings] /api/teams did not return an array:', json);
+          setTeams([]);
+          return;
+        }
+
+        setTeams(json as TeamRow[]);
       } catch (err) {
         console.error(err);
         setTeams([]);
@@ -181,11 +202,20 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      const created = await res.json();
-      setTournaments((prev) => [...prev, created]);
+      const created: unknown = await res.json();
+      const createdAny = created as Partial<Tournament> | null;
+
+      if (!createdAny || typeof createdAny.id !== 'number') {
+        console.error('[admin/settings] Create tournament unexpected response:', created);
+        alert('Tournament created, but response was unexpected.');
+        await refreshTournaments();
+        return;
+      }
+
+      setTournaments((prev) => [...prev, createdAny as Tournament]);
       setNewTournamentName('');
       setNewTournamentYear('');
-      setSelectedTournamentId(created.id);
+      setSelectedTournamentId(createdAny.id);
       alert('Tournament created!');
     } catch (err) {
       console.error(err);
@@ -251,13 +281,13 @@ export default function AdminSettingsPage() {
       if (!res.ok) {
         console.error('Activate tournament failed:', json);
         alert(
-          (json && json.error) ||
+          (json && (json as any).error) ||
             `Failed to set active tournament (status ${res.status}).`
         );
         return;
       }
 
-      alert(`Active tournament set ✅\n\n${json?.name ?? 'Selected tournament'}`);
+      alert(`Active tournament set ✅\n\n${(json as any)?.name ?? 'Selected tournament'}`);
       await refreshTournaments();
     } catch (e) {
       console.error(e);
@@ -296,10 +326,19 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      // Refresh teams list
+      // refresh teams list safely
       try {
-        const r2 = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`);
-        setTeams(await r2.json());
+        const r2 = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`, {
+          cache: 'no-store',
+        });
+        const json2: unknown = await r2.json().catch(() => null);
+
+        if (Array.isArray(json2)) {
+          setTeams(json2 as TeamRow[]);
+        } else {
+          console.warn('[admin/settings] /api/teams refresh did not return array:', json2);
+          setTeams([]);
+        }
       } catch {
         // ignore
       }
@@ -331,7 +370,7 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({ tournamentId: selectedTournamentId }),
       });
 
-      let json: any = null;
+      let json: unknown = null;
       try {
         json = await res.json();
       } catch {
@@ -341,17 +380,17 @@ export default function AdminSettingsPage() {
       if (!res.ok) {
         console.error('Recalc failed – status:', res.status, 'json:', json);
         setMaintenanceStatus(
-          (json && json.error) || `Failed to recalc scores (status ${res.status}).`
+          (json && (json as any).error) || `Failed to recalc scores (status ${res.status}).`
         );
         return;
       }
 
       setMaintenanceStatus(
-        `Scores recalculated for ${json?.updatedBrackets ?? 0} brackets across ${
-          json?.users ?? 0
+        `Scores recalculated for ${(json as any)?.updatedBrackets ?? 0} brackets across ${
+          (json as any)?.users ?? 0
         } players ✅`
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error('Recalc error:', err);
       setMaintenanceStatus('Error recalculating scores.');
     }
@@ -385,7 +424,7 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      const json = await res.json();
+      const json: any = await res.json().catch(() => ({}));
       setMaintenanceStatus(`Deleted ${json.deleted ?? 0} picks for this tournament ✅`);
     } catch (err) {
       console.error(err);
@@ -429,7 +468,7 @@ export default function AdminSettingsPage() {
       'border border-[#F5B8B0]',
     ].join(' ');
 
-  const groupedTeamsByRegion = (() => {
+  const groupedTeamsByRegion = useMemo(() => {
     const groups: Record<string, TeamRow[]> = {};
     for (const t of teams) {
       const region = t.region || 'Unknown';
@@ -444,9 +483,12 @@ export default function AdminSettingsPage() {
       })
     );
     return groups;
-  })();
+  }, [teams]);
 
-  const activeTournament = tournaments.find((t) => t.isActive);
+  const activeTournament = useMemo(() => {
+    // safe even if tournaments is empty
+    return tournaments.find((t) => !!t.isActive);
+  }, [tournaments]);
 
   // ------------------ Render ------------------
   if (isAdmin === null) {
@@ -514,7 +556,8 @@ export default function AdminSettingsPage() {
                 Most actions below apply to the selected tournament.
                 {activeTournament?.id ? (
                   <span className="ml-2 text-[#0A2041]/60">
-                    (Currently active: <span className="font-semibold">{activeTournament.name}</span>)
+                    (Currently active:{' '}
+                    <span className="font-semibold">{activeTournament.name}</span>)
                   </span>
                 ) : null}
               </p>
@@ -855,4 +898,3 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
-
