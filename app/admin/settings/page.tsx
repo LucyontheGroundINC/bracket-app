@@ -80,21 +80,25 @@ export default function AdminSettingsPage() {
 const refreshTournaments = async () => {
   setLoadingTournaments(true);
   try {
-    const res = await fetch("/api/tournaments", { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load tournaments");
+    const res = await fetch("/api/tournaments?v=admin", { cache: "no-store" });
+    const json = await res.json().catch(() => null);
 
-    const json = await res.json();
+    if (!res.ok) {
+      console.error("Failed to load tournaments:", json);
+      setTournaments([]);
+      return;
+    }
 
-    // ✅ normalize: API might return Tournament[] OR a single Tournament
     const list = Array.isArray(json) ? json : json ? [json] : [];
     setTournaments(list);
   } catch (err) {
-    console.error(err);
+    console.error("Error loading tournaments:", err);
     setTournaments([]);
   } finally {
     setLoadingTournaments(false);
   }
 };
+
 
   // ------------------ Load lock settings when tournament changes ------------------
   useEffect(() => {
@@ -476,10 +480,8 @@ const refreshTournaments = async () => {
     return groups;
   }, [teams]);
 
-  const activeTournament = useMemo(() => {
-    // safe even if tournaments is empty
-    return tournaments.find((t) => !!t.isActive);
-  }, [tournaments]);
+const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t) => t.isActive);
+
 
   // ------------------ Render ------------------
   if (isAdmin === null) {
@@ -744,6 +746,12 @@ const refreshTournaments = async () => {
                         <option value="South">South</option>
                         <option value="Midwest">Midwest</option>
                       </select>
+                      {!loadingTournaments && tournaments.length === 0 && (
+  <div className="text-xs text-[#CA4C4C] mt-2">
+    No tournaments loaded. Visit <code>/api/tournaments</code> to verify.
+  </div>
+)}
+
                     </div>
                   </div>
                   <button
