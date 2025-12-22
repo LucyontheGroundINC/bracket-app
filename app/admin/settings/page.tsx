@@ -10,8 +10,9 @@ type Tournament = {
   name: string;
   year: number | null;
   isLockedManual: boolean | null;
-  lockAt: string | null; // ISO from API
-  isActive?: boolean | null; // optional: if your API returns it
+  lockAt: string | null; // ISO string from API
+  isActive?: boolean | null;
+  createdAt?: string | null;
 };
 
 type TeamRow = {
@@ -34,6 +35,8 @@ export default function AdminSettingsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | ''>('');
+  const [tournamentsError, setTournamentsError] = useState<string | null>(null);
+  const [tournamentsDebug, setTournamentsDebug] = useState<any>(null);
 
   // Create tournament
   const [newTournamentName, setNewTournamentName] = useState('');
@@ -77,36 +80,51 @@ export default function AdminSettingsPage() {
   }, []);
 
   // ------------------ Load tournaments ------------------
-const refreshTournaments = async () => {
-  setLoadingTournaments(true);
-  try {
-    const res = await fetch("/api/tournaments?v=admin", { cache: "no-store" });
-    const json = await res.json().catch(() => null);
+  const refreshTournaments = async () => {
+    setLoadingTournaments(true);
+    setTournamentsError(null);
 
-    if (!res.ok) {
-      console.error("Failed to load tournaments:", json);
+    try {
+      const res = await fetch('/api/tournaments?v=admin', { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+
+      // store what the page actually got (debug)
+      setTournamentsDebug({ ok: res.ok, status: res.status, json });
+
+      if (!res.ok) {
+        console.error('Failed to load tournaments:', json);
+        setTournaments([]);
+        setTournamentsError(
+          (json && (json.error || json.message)) ||
+            `Failed to load tournaments (status ${res.status})`
+        );
+        return;
+      }
+
+      // normalize into an array no matter what
+      const list: Tournament[] = Array.isArray(json) ? json : json ? [json] : [];
+      setTournaments(list);
+
+      // auto-select: if nothing selected, prefer active, else first item
+      if (selectedTournamentId === '' && list.length > 0) {
+        const active = list.find((t) => t && t.isActive);
+        setSelectedTournamentId(active?.id ?? list[0].id);
+      }
+    } catch (err: any) {
+      console.error('Error loading tournaments:', err);
       setTournaments([]);
-      return;
+      setTournamentsError(err?.message ?? 'Error loading tournaments');
+      setTournamentsDebug({ ok: false, status: 'fetch-throw', error: err?.message ?? String(err) });
+    } finally {
+      setLoadingTournaments(false);
     }
+  };
 
-    // guarantee array
-    const list = Array.isArray(json) ? json : json ? [json] : [];
-    setTournaments(list);
-
-    // optional: auto-select the active tournament if none selected
-    if (selectedTournamentId === "" && list.length > 0) {
-      const active = list.find((t: any) => t?.isActive) ?? list[0];
-      setSelectedTournamentId(active?.id ?? "");
-    }
-  } catch (err) {
-    console.error("Error loading tournaments:", err);
-    setTournaments([]);
-  } finally {
-    setLoadingTournaments(false);
-  }
-};
-
-
+  useEffect(() => {
+    if (!isAdmin) return;
+    refreshTournaments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   // ------------------ Load lock settings when tournament changes ------------------
   useEffect(() => {
@@ -117,11 +135,8 @@ const refreshTournaments = async () => {
         return;
       }
       try {
-        const res = await fetch(`/api/tournaments/${selectedTournamentId}`, {
-          cache: 'no-store',
-        });
+        const res = await fetch(`/api/tournaments/${selectedTournamentId}`, { cache: 'no-store' });
         if (!res.ok) return;
-
         const t: Tournament = await res.json();
 
         if (t.lockAt) {
@@ -157,16 +172,8 @@ const refreshTournaments = async () => {
           cache: 'no-store',
         });
         if (!res.ok) throw new Error('Failed to load teams');
-
-        const json: unknown = await res.json();
-
-        if (!Array.isArray(json)) {
-          console.error('[admin/settings] /api/teams did not return an array:', json);
-          setTeams([]);
-          return;
-        }
-
-        setTeams(json as TeamRow[]);
+        const json = await res.json();
+        setTeams(Array.isArray(json) ? json : []);
       } catch (err) {
         console.error(err);
         setTeams([]);
@@ -198,27 +205,20 @@ const refreshTournaments = async () => {
         }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        console.error('Create tournament failed:', err);
-        alert('Failed to create tournament.');
+        console.error('Create tournament failed:', json);
+        alert((json && (json.error || json.message)) || 'Failed to create tournament.');
         return;
       }
 
-      const created: unknown = await res.json();
-      const createdAny = created as Partial<Tournament> | null;
-
-      if (!createdAny || typeof createdAny.id !== 'number') {
-        console.error('[admin/settings] Create tournament unexpected response:', created);
-        alert('Tournament created, but response was unexpected.');
-        await refreshTournaments();
-        return;
-      }
-
-      setTournaments((prev) => [...prev, createdAny as Tournament]);
       setNewTournamentName('');
       setNewTournamentYear('');
-      setSelectedTournamentId(createdAny.id);
+      await refreshTournaments();
+
+      // json should be the created tournament DTO
+      if (json?.id) setSelectedTournamentId(Number(json.id));
       alert('Tournament created!');
     } catch (err) {
       console.error(err);
@@ -246,10 +246,11 @@ const refreshTournaments = async () => {
         }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        console.error('Saving lock failed:', err);
-        alert('Failed to save lock settings.');
+        console.error('Saving lock failed:', json);
+        alert((json && (json.error || json.message)) || 'Failed to save lock settings.');
         return;
       }
 
@@ -283,14 +284,11 @@ const refreshTournaments = async () => {
 
       if (!res.ok) {
         console.error('Activate tournament failed:', json);
-        alert(
-          (json && (json as any).error) ||
-            `Failed to set active tournament (status ${res.status}).`
-        );
+        alert((json && (json.error || json.message)) || `Failed (status ${res.status}).`);
         return;
       }
 
-      alert(`Active tournament set ✅\n\n${(json as any)?.name ?? 'Selected tournament'}`);
+      alert('Active tournament set ✅');
       await refreshTournaments();
     } catch (e) {
       console.error(e);
@@ -322,26 +320,21 @@ const refreshTournaments = async () => {
         }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        console.error('Add team failed:', err);
-        alert('Failed to add team.');
+        console.error('Add team failed:', json);
+        alert((json && (json.error || json.message)) || 'Failed to add team.');
         return;
       }
 
-      // refresh teams list safely
+      // Refresh teams list
       try {
         const r2 = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`, {
           cache: 'no-store',
         });
-        const json2: unknown = await r2.json().catch(() => null);
-
-        if (Array.isArray(json2)) {
-          setTeams(json2 as TeamRow[]);
-        } else {
-          console.warn('[admin/settings] /api/teams refresh did not return array:', json2);
-          setTeams([]);
-        }
+        const j2 = await r2.json().catch(() => []);
+        setTeams(Array.isArray(j2) ? j2 : []);
       } catch {
         // ignore
       }
@@ -373,25 +366,18 @@ const refreshTournaments = async () => {
         body: JSON.stringify({ tournamentId: selectedTournamentId }),
       });
 
-      let json: unknown = null;
-      try {
-        json = await res.json();
-      } catch {
-        json = null;
-      }
+      const json = await res.json().catch(() => null);
 
       if (!res.ok) {
         console.error('Recalc failed – status:', res.status, 'json:', json);
         setMaintenanceStatus(
-          (json && (json as any).error) || `Failed to recalc scores (status ${res.status}).`
+          (json && (json.error || json.message)) || `Failed (status ${res.status}).`
         );
         return;
       }
 
       setMaintenanceStatus(
-        `Scores recalculated for ${(json as any)?.updatedBrackets ?? 0} brackets across ${
-          (json as any)?.users ?? 0
-        } players ✅`
+        `Scores recalculated for ${json?.updatedBrackets ?? 0} brackets across ${json?.users ?? 0} players ✅`
       );
     } catch (err) {
       console.error('Recalc error:', err);
@@ -406,8 +392,7 @@ const refreshTournaments = async () => {
     }
 
     const sure = window.confirm(
-      '⚠ This will delete ALL picks for the selected tournament in the main bracket database.\n\n' +
-        'This cannot be undone. Are you absolutely sure?'
+      '⚠ This will delete ALL picks for the selected tournament.\n\nThis cannot be undone. Continue?'
     );
     if (!sure) return;
 
@@ -420,15 +405,15 @@ const refreshTournaments = async () => {
         body: JSON.stringify({ tournamentId: selectedTournamentId }),
       });
 
+      const json = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        console.error('reset-tournament-picks failed:', err);
+        console.error('reset-tournament-picks failed:', json);
         setMaintenanceStatus('Failed to delete tournament picks.');
         return;
       }
 
-      const json: any = await res.json().catch(() => ({}));
-      setMaintenanceStatus(`Deleted ${json.deleted ?? 0} picks for this tournament ✅`);
+      setMaintenanceStatus(`Deleted ${json?.deleted ?? 0} picks ✅`);
     } catch (err) {
       console.error(err);
       setMaintenanceStatus('Error deleting tournament picks.');
@@ -441,7 +426,7 @@ const refreshTournaments = async () => {
       return;
     }
     const sure = window.confirm(
-      'This will delete ALL picks associated with your account in Supabase.\nThis cannot be undone. Continue?'
+      'This will delete ALL picks associated with your account.\nThis cannot be undone. Continue?'
     );
     if (!sure) return;
 
@@ -488,9 +473,10 @@ const refreshTournaments = async () => {
     return groups;
   }, [teams]);
 
-const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t) => t.isActive);
-
-
+  const activeTournament = useMemo(
+    () => (Array.isArray(tournaments) ? tournaments : []).find((t) => !!t?.isActive),
+    [tournaments]
+  );
 
   // ------------------ Render ------------------
   if (isAdmin === null) {
@@ -518,7 +504,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] pt-24 pb-10 px-4">
       <main className="max-w-5xl mx-auto">
-        {/* Title + Tabs */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#CA4C4C]">Admin Control Center</h1>
@@ -563,6 +548,12 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                   </span>
                 ) : null}
               </p>
+
+              {tournamentsError && (
+                <p className="mt-2 text-xs text-[#CA4C4C]">
+                  {tournamentsError}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -575,7 +566,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
               >
                 <option value="">Select tournament…</option>
                 {(Array.isArray(tournaments) ? tournaments : []).map((t) => (
-
                   <option key={t.id} value={t.id}>
                     {t.name} {t.year ? `(${t.year})` : ''} {t.isActive ? '✅ Active' : ''}
                   </option>
@@ -596,14 +586,32 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                 Set Active
               </button>
 
+              <button
+                type="button"
+                onClick={refreshTournaments}
+                className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/80 border border-[#F5B8B0] hover:bg-white"
+              >
+                Refresh
+              </button>
+
               {loadingTournaments && <span className="text-xs text-[#0A2041]/60">Loading…</span>}
             </div>
           </div>
+
+          {/* Debug panel (super helpful right now) */}
+          <div className="mt-3 text-[11px] text-[#0A2041]/60">
+            <div className="flex items-center justify-between">
+              <span>Debug: tournaments loaded = {Array.isArray(tournaments) ? tournaments.length : 0}</span>
+              <span>selectedTournamentId = {selectedTournamentId === '' ? '(none)' : selectedTournamentId}</span>
+            </div>
+          </div>
         </div>
+<p className="mt-2 text-[11px] text-[#0A2041]/60">
+  Build marker: admin-settings-v3
+</p>
 
         {/* Tabs content */}
         <div className="space-y-6">
-          {/* OVERVIEW */}
           {activeTab === 'overview' && (
             <section className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
               <h2 className="text-lg font-semibold mb-3 text-[#CA4C4C]">Quick Overview</h2>
@@ -620,13 +628,21 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                   Use the <strong>Maintenance</strong> tab to recalc scores or reset picks.
                 </li>
               </ul>
+
+              {/* Optional: show raw payload received */}
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs text-[#CA4C4C] font-semibold">
+                  View tournaments fetch payload (debug)
+                </summary>
+                <pre className="mt-2 p-3 bg-[#FDF3EE] border border-[#F5B8B0] rounded-xl overflow-auto text-[11px]">
+                  {JSON.stringify(tournamentsDebug, null, 2)}
+                </pre>
+              </details>
             </section>
           )}
 
-          {/* TOURNAMENTS */}
           {activeTab === 'tournaments' && (
             <section className="grid md:grid-cols-2 gap-5">
-              {/* Create Tournament */}
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                 <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Create New Tournament</h2>
                 <form onSubmit={handleCreateTournament} className="space-y-3 text-sm">
@@ -641,7 +657,7 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                     />
                   </div>
                   <div>
-                    <label className="block text-xs mb-1 text-[#0A2041]/70">Year (optional)</label>
+                    <label className="block text-xs mb-1 text-[#0A2041]/70">Year (required)</label>
                     <input
                       type="number"
                       value={newTournamentYear}
@@ -651,6 +667,9 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                       className="w-full bg-[#FDF3EE] border border-[#F5B8B0] rounded-lg px-3 py-2 text-sm"
                       placeholder="2026"
                     />
+                    <p className="text-[11px] text-[#0A2041]/60 mt-1">
+                      Your DB has <code>year</code> as NOT NULL, so you must provide it.
+                    </p>
                   </div>
                   <button
                     type="submit"
@@ -661,7 +680,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                 </form>
               </div>
 
-              {/* Lock Settings */}
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                 <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Lock Settings</h2>
                 <form onSubmit={handleSaveLockSettings} className="space-y-3 text-sm">
@@ -708,14 +726,10 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
             </section>
           )}
 
-          {/* TEAMS */}
           {activeTab === 'teams' && (
             <section className="space-y-5">
-              {/* Add Team */}
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
-                <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">
-                  Add Teams to Tournament
-                </h2>
+                <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Add Teams to Tournament</h2>
                 <form onSubmit={handleAddTeam} className="space-y-3 text-sm">
                   <div className="grid md:grid-cols-2 gap-3">
                     <div>
@@ -729,9 +743,7 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                       />
                     </div>
                     <div>
-                      <label className="block text-xs mb-1 text-[#0A2041]/70">
-                        Seed (optional)
-                      </label>
+                      <label className="block text-xs mb-1 text-[#0A2041]/70">Seed (optional)</label>
                       <input
                         type="number"
                         value={teamSeed}
@@ -743,18 +755,10 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                       />
                     </div>
                   </div>
+
                   <div className="grid md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs mb-1 text-[#0A2041]/70">Region</label>
-                      <div className="text-[11px] text-[#0A2041]/70">
-  <div>loadingTournaments: {String(loadingTournaments)}</div>
-  <div>tournaments isArray: {String(Array.isArray(tournaments))}</div>
-  <div>tournaments length: {Array.isArray(tournaments) ? tournaments.length : "n/a"}</div>
-  <pre className="mt-2 whitespace-pre-wrap break-words bg-white/70 border border-[#F5B8B0] rounded-lg p-2">
-    {JSON.stringify(tournaments, null, 2)}
-  </pre>
-</div>
-
                       <select
                         value={teamRegion}
                         onChange={(e) => setTeamRegion(e.target.value)}
@@ -765,14 +769,9 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                         <option value="South">South</option>
                         <option value="Midwest">Midwest</option>
                       </select>
-                      {!loadingTournaments && tournaments.length === 0 && (
-  <div className="text-xs text-[#CA4C4C] mt-2">
-    No tournaments loaded. Visit <code>/api/tournaments</code> to verify.
-  </div>
-)}
-
                     </div>
                   </div>
+
                   <button
                     type="submit"
                     disabled={savingTeam || !selectedTournamentId}
@@ -794,7 +793,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                 </form>
               </div>
 
-              {/* Teams by Region */}
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold text-[#CA4C4C]">Teams by Region</h2>
@@ -840,16 +838,10 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
             </section>
           )}
 
-          {/* MAINTENANCE */}
           {activeTab === 'maintenance' && (
             <section className="space-y-5">
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
-                <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">
-                  Maintenance & Utilities
-                </h2>
-                <p className="text-sm text-[#0A2041]/80 mb-3">
-                  Use these tools after updating winners or making scoring changes.
-                </p>
+                <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Maintenance & Utilities</h2>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                   <button
@@ -888,9 +880,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
 
               <div className="bg-[#FDF3EE] border border-[#CA4C4C] rounded-2xl p-5 shadow-sm">
                 <h2 className="text-sm font-semibold mb-2 text-[#CA4C4C]">Danger Zone</h2>
-                <p className="text-[11px] text-[#0A2041]/80 mb-3">
-                  These actions are destructive. Please double-check before you click.
-                </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                   <button
@@ -899,10 +888,6 @@ const activeTournament = (Array.isArray(tournaments) ? tournaments : []).find((t
                   >
                     Reset <span className="mx-1 font-bold">my</span> picks (Supabase)
                   </button>
-                  <p className="text-[11px] text-[#0A2041]/80 max-w-md">
-                    Deletes all rows in the Supabase <code className="font-mono">picks</code> table
-                    where <code className="font-mono">user_id</code> = your account.
-                  </p>
                 </div>
 
                 {maintenanceStatus && (
