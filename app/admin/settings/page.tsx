@@ -36,7 +36,7 @@ export default function AdminSettingsPage() {
   const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | ''>('');
   const [tournamentsError, setTournamentsError] = useState<string | null>(null);
-  const [tournamentsDebug, setTournamentsDebug] = useState<any>(null);
+  const [tournamentsDebug, setTournamentsDebug] = useState<unknown>(null);
 
   // Create tournament
   const [newTournamentName, setNewTournamentName] = useState('');
@@ -59,6 +59,93 @@ export default function AdminSettingsPage() {
 
   // Maintenance / status
   const [maintenanceStatus, setMaintenanceStatus] = useState<string>('');
+
+  // CSV Importer (Games)
+  const [gamesCsv, setGamesCsv] = useState<string>('');
+  const [importStatus, setImportStatus] = useState<string>('');
+  const [importing, setImporting] = useState(false);
+
+  async function handleCsvFile(file: File) {
+    const text = await file.text();
+    setGamesCsv(text);
+    setImportStatus('');
+  }
+
+  async function handleValidateGamesCsv() {
+    if (!selectedTournamentId) {
+      alert('Select a tournament first.');
+      return;
+    }
+    if (!gamesCsv.trim()) {
+      alert('Paste CSV or upload a file first.');
+      return;
+    }
+
+    setImportStatus('Validating…');
+
+    const res = await fetch('/api/admin/import-games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tournamentId: selectedTournamentId,
+        csv: gamesCsv,
+        dryRun: true,
+      }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      setImportStatus(
+        `Validation failed: ${json?.errors?.[0] ?? json?.error ?? json?.message ?? 'Unknown error'}`
+      );
+      return;
+    }
+
+    setImportStatus(`✅ Valid. Parsed rows: ${json?.parsedRows ?? 0}`);
+  }
+
+  async function handleImportGamesCsv() {
+    if (!selectedTournamentId) {
+      alert('Select a tournament first.');
+      return;
+    }
+    if (!gamesCsv.trim()) {
+      alert('Paste CSV or upload a file first.');
+      return;
+    }
+
+    const sure = window.confirm(
+      'Import games from CSV?\n\nThis will upsert games for the selected tournament.'
+    );
+    if (!sure) return;
+
+    setImporting(true);
+    setImportStatus('Importing…');
+
+    try {
+      const res = await fetch('/api/admin/import-games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: selectedTournamentId,
+          csv: gamesCsv,
+          dryRun: false,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setImportStatus(`Import failed: ${json?.error ?? json?.message ?? 'Unknown error'}`);
+        return;
+      }
+
+      setImportStatus(`✅ Imported. Rows upserted: ${json?.rowsUpserted ?? 0}`);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // ------------------ Auth / Admin check ------------------
   useEffect(() => {
@@ -95,8 +182,7 @@ export default function AdminSettingsPage() {
         console.error('Failed to load tournaments:', json);
         setTournaments([]);
         setTournamentsError(
-          (json && (json.error || json.message)) ||
-            `Failed to load tournaments (status ${res.status})`
+          (json && (json.error || json.message)) || `Failed to load tournaments (status ${res.status})`
         );
         return;
       }
@@ -110,11 +196,12 @@ export default function AdminSettingsPage() {
         const active = list.find((t) => t && t.isActive);
         setSelectedTournamentId(active?.id ?? list[0].id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Error loading tournaments:', err);
       setTournaments([]);
-      setTournamentsError(err?.message ?? 'Error loading tournaments');
-      setTournamentsDebug({ ok: false, status: 'fetch-throw', error: err?.message ?? String(err) });
+      setTournamentsError(msg || 'Error loading tournaments');
+      setTournamentsDebug({ ok: false, status: 'fetch-throw', error: msg || String(err) });
     } finally {
       setLoadingTournaments(false);
     }
@@ -370,9 +457,7 @@ export default function AdminSettingsPage() {
 
       if (!res.ok) {
         console.error('Recalc failed – status:', res.status, 'json:', json);
-        setMaintenanceStatus(
-          (json && (json.error || json.message)) || `Failed (status ${res.status}).`
-        );
+        setMaintenanceStatus((json && (json.error || json.message)) || `Failed (status ${res.status}).`);
         return;
       }
 
@@ -450,9 +535,7 @@ export default function AdminSettingsPage() {
   const tabButtonClasses = (key: TabKey) =>
     [
       'px-3 py-2 rounded-full text-xs font-semibold transition',
-      activeTab === key
-        ? 'bg-[#CA4C4C] text-[#F8F5EE]'
-        : 'bg-white/70 text-[#0A2041] hover:bg-white',
+      activeTab === key ? 'bg-[#CA4C4C] text-[#F8F5EE]' : 'bg-white/70 text-[#0A2041] hover:bg-white',
       'border border-[#F5B8B0]',
     ].join(' ');
 
@@ -494,9 +577,7 @@ export default function AdminSettingsPage() {
         <p className="text-sm text-[#0A2041]/80 text-center max-w-md">
           You must be signed in as the admin ({ADMIN_EMAIL}) to view this page.
         </p>
-        {userEmail && (
-          <p className="mt-2 text-xs text-[#0A2041]/60">You are signed in as: {userEmail}</p>
-        )}
+        {userEmail && <p className="mt-2 text-xs text-[#0A2041]/60">You are signed in as: {userEmail}</p>}
       </div>
     );
   }
@@ -507,28 +588,21 @@ export default function AdminSettingsPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#CA4C4C]">Admin Control Center</h1>
-            <p className="text-sm text-[#0A2041]/70 mt-1">
-              Manage tournaments, teams, locks, and scoring.
-            </p>
+            <p className="text-sm text-[#0A2041]/70 mt-1">Manage tournaments, teams, locks, and scoring.</p>
+            <p className="mt-2 text-[11px] text-[#0A2041]/60">Build marker: admin-settings-v4</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setActiveTab('overview')} className={tabButtonClasses('overview')}>
               Overview
             </button>
-            <button
-              onClick={() => setActiveTab('tournaments')}
-              className={tabButtonClasses('tournaments')}
-            >
+            <button onClick={() => setActiveTab('tournaments')} className={tabButtonClasses('tournaments')}>
               Tournaments
             </button>
             <button onClick={() => setActiveTab('teams')} className={tabButtonClasses('teams')}>
               Teams
             </button>
-            <button
-              onClick={() => setActiveTab('maintenance')}
-              className={tabButtonClasses('maintenance')}
-            >
+            <button onClick={() => setActiveTab('maintenance')} className={tabButtonClasses('maintenance')}>
               Maintenance
             </button>
           </div>
@@ -543,25 +617,18 @@ export default function AdminSettingsPage() {
                 Most actions below apply to the selected tournament.
                 {activeTournament?.id ? (
                   <span className="ml-2 text-[#0A2041]/60">
-                    (Currently active:{' '}
-                    <span className="font-semibold">{activeTournament.name}</span>)
+                    (Currently active: <span className="font-semibold">{activeTournament.name}</span>)
                   </span>
                 ) : null}
               </p>
 
-              {tournamentsError && (
-                <p className="mt-2 text-xs text-[#CA4C4C]">
-                  {tournamentsError}
-                </p>
-              )}
+              {tournamentsError && <p className="mt-2 text-xs text-[#CA4C4C]">{tournamentsError}</p>}
             </div>
 
             <div className="flex items-center gap-2">
               <select
                 value={selectedTournamentId}
-                onChange={(e) =>
-                  setSelectedTournamentId(e.target.value === '' ? '' : Number(e.target.value))
-                }
+                onChange={(e) => setSelectedTournamentId(e.target.value === '' ? '' : Number(e.target.value))}
                 className="bg-[#FDF3EE] border border-[#F5B8B0] rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Select tournament…</option>
@@ -598,7 +665,6 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Debug panel (super helpful right now) */}
           <div className="mt-3 text-[11px] text-[#0A2041]/60">
             <div className="flex items-center justify-between">
               <span>Debug: tournaments loaded = {Array.isArray(tournaments) ? tournaments.length : 0}</span>
@@ -606,9 +672,6 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
-<p className="mt-2 text-[11px] text-[#0A2041]/60">
-  Build marker: admin-settings-v3
-</p>
 
         {/* Tabs content */}
         <div className="space-y-6">
@@ -617,19 +680,17 @@ export default function AdminSettingsPage() {
               <h2 className="text-lg font-semibold mb-3 text-[#CA4C4C]">Quick Overview</h2>
               <ul className="list-disc list-inside text-sm text-[#0A2041]/80 space-y-2">
                 <li>
-                  Use the <strong>Tournaments</strong> tab to create contests and control the{' '}
-                  <em>lock date/time</em>.
+                  Use the <strong>Tournaments</strong> tab to create contests and control the <em>lock date/time</em>.
                 </li>
                 <li>
-                  Use the <strong>Teams</strong> tab to add teams and double-check seeds/regions in
-                  the “Teams by Region” panel.
+                  Use the <strong>Teams</strong> tab to add teams and double-check seeds/regions in the “Teams by Region”
+                  panel.
                 </li>
                 <li>
-                  Use the <strong>Maintenance</strong> tab to recalc scores or reset picks.
+                  Use the <strong>Maintenance</strong> tab to recalc scores, reset picks, and import games.
                 </li>
               </ul>
 
-              {/* Optional: show raw payload received */}
               <details className="mt-4">
                 <summary className="cursor-pointer text-xs text-[#CA4C4C] font-semibold">
                   View tournaments fetch payload (debug)
@@ -661,9 +722,7 @@ export default function AdminSettingsPage() {
                     <input
                       type="number"
                       value={newTournamentYear}
-                      onChange={(e) =>
-                        setNewTournamentYear(e.target.value === '' ? '' : Number(e.target.value))
-                      }
+                      onChange={(e) => setNewTournamentYear(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-full bg-[#FDF3EE] border border-[#F5B8B0] rounded-lg px-3 py-2 text-sm"
                       placeholder="2026"
                     />
@@ -684,9 +743,7 @@ export default function AdminSettingsPage() {
                 <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Lock Settings</h2>
                 <form onSubmit={handleSaveLockSettings} className="space-y-3 text-sm">
                   <div>
-                    <label className="block text-xs mb-1 text-[#0A2041]/70">
-                      Lock at (date &amp; time)
-                    </label>
+                    <label className="block text-xs mb-1 text-[#0A2041]/70">Lock at (date &amp; time)</label>
                     <input
                       type="datetime-local"
                       value={lockAt}
@@ -714,9 +771,7 @@ export default function AdminSettingsPage() {
                     disabled={savingLock || !selectedTournamentId}
                     className={[
                       'mt-2 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold',
-                      selectedTournamentId
-                        ? 'bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0]'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed',
+                      selectedTournamentId ? 'bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0]' : 'bg-gray-300 text-gray-500 cursor-not-allowed',
                     ].join(' ')}
                   >
                     {savingLock ? 'Saving…' : 'Save Lock Settings'}
@@ -747,9 +802,7 @@ export default function AdminSettingsPage() {
                       <input
                         type="number"
                         value={teamSeed}
-                        onChange={(e) =>
-                          setTeamSeed(e.target.value === '' ? '' : Number(e.target.value))
-                        }
+                        onChange={(e) => setTeamSeed(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full bg-[#FDF3EE] border border-[#F5B8B0] rounded-lg px-3 py-2 text-sm"
                         placeholder="1–16"
                       />
@@ -777,18 +830,14 @@ export default function AdminSettingsPage() {
                     disabled={savingTeam || !selectedTournamentId}
                     className={[
                       'mt-2 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold',
-                      selectedTournamentId
-                        ? 'bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a]'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed',
+                      selectedTournamentId ? 'bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a]' : 'bg-gray-300 text-gray-500 cursor-not-allowed',
                     ].join(' ')}
                   >
                     {savingTeam ? 'Saving…' : 'Add Team'}
                   </button>
 
                   {!selectedTournamentId && (
-                    <p className="mt-2 text-[11px] text-[#CA4C4C]">
-                      Select a tournament above before adding teams.
-                    </p>
+                    <p className="mt-2 text-[11px] text-[#CA4C4C]">Select a tournament above before adding teams.</p>
                   )}
                 </form>
               </div>
@@ -801,19 +850,14 @@ export default function AdminSettingsPage() {
 
                 {(!selectedTournamentId || teams.length === 0) && !loadingTeams ? (
                   <p className="text-xs text-[#0A2041]/70">
-                    {selectedTournamentId
-                      ? 'No teams found for this tournament yet.'
-                      : 'Select a tournament above to view its teams.'}
+                    {selectedTournamentId ? 'No teams found for this tournament yet.' : 'Select a tournament above to view its teams.'}
                   </p>
                 ) : (
                   <div className="grid md:grid-cols-4 gap-4 text-xs">
                     {['East', 'West', 'South', 'Midwest'].map((region) => {
                       const list = groupedTeamsByRegion[region] || [];
                       return (
-                        <div
-                          key={region}
-                          className="bg-[#FDF3EE] border border-[#F5B8B0] rounded-xl p-3"
-                        >
+                        <div key={region} className="bg-[#FDF3EE] border border-[#F5B8B0] rounded-xl p-3">
                           <h3 className="font-semibold mb-2 text-[#0A2041]">{region}</h3>
                           {list.length === 0 ? (
                             <p className="text-[11px] text-[#0A2041]/60">No teams yet.</p>
@@ -822,9 +866,7 @@ export default function AdminSettingsPage() {
                               {list.map((t) => (
                                 <li key={t.id} className="flex justify-between gap-2">
                                   <span className="truncate">{t.name}</span>
-                                  {t.seed != null && (
-                                    <span className="text-[11px] text-[#0A2041]/60">#{t.seed}</span>
-                                  )}
+                                  {t.seed != null && <span className="text-[11px] text-[#0A2041]/60">#{t.seed}</span>}
                                 </li>
                               ))}
                             </ul>
@@ -840,6 +882,7 @@ export default function AdminSettingsPage() {
 
           {activeTab === 'maintenance' && (
             <section className="space-y-5">
+              {/* Maintenance & Utilities */}
               <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                 <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Maintenance & Utilities</h2>
 
@@ -849,9 +892,7 @@ export default function AdminSettingsPage() {
                     disabled={!selectedTournamentId}
                     className={[
                       'inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold',
-                      selectedTournamentId
-                        ? 'bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0]'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed',
+                      selectedTournamentId ? 'bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0]' : 'bg-gray-300 text-gray-500 cursor-not-allowed',
                     ].join(' ')}
                   >
                     Recalculate Leaderboard Scores
@@ -862,9 +903,7 @@ export default function AdminSettingsPage() {
                     disabled={!selectedTournamentId}
                     className={[
                       'inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold',
-                      selectedTournamentId
-                        ? 'bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a]'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed',
+                      selectedTournamentId ? 'bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a]' : 'bg-gray-300 text-gray-500 cursor-not-allowed',
                     ].join(' ')}
                   >
                     Nuke picks for selected tournament
@@ -872,12 +911,74 @@ export default function AdminSettingsPage() {
                 </div>
 
                 {!selectedTournamentId && (
-                  <p className="mt-2 text-[11px] text-[#CA4C4C]">
-                    Select a tournament above before running maintenance actions.
-                  </p>
+                  <p className="mt-2 text-[11px] text-[#CA4C4C]">Select a tournament above before running maintenance actions.</p>
                 )}
               </div>
 
+              {/* ✅ CSV Importer card */}
+              <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
+                <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Import Games (CSV)</h2>
+                <p className="text-xs text-[#0A2041]/70 mb-3">
+                  Upload or paste a CSV to create/upsert games for the selected tournament.
+                </p>
+
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleCsvFile(f);
+                      }}
+                      className="text-xs"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={handleValidateGamesCsv}
+                      disabled={!selectedTournamentId || !gamesCsv.trim() || importing}
+                      className={[
+                        'inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold border',
+                        selectedTournamentId && gamesCsv.trim()
+                          ? 'bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0] border-[#A7C4E7]'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300',
+                      ].join(' ')}
+                    >
+                      Validate
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleImportGamesCsv}
+                      disabled={!selectedTournamentId || !gamesCsv.trim() || importing}
+                      className={[
+                        'inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold border',
+                        selectedTournamentId && gamesCsv.trim()
+                          ? 'bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a] border-[#CA4C4C]'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300',
+                      ].join(' ')}
+                    >
+                      {importing ? 'Importing…' : 'Import'}
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={gamesCsv}
+                    onChange={(e) => setGamesCsv(e.target.value)}
+                    placeholder="Paste CSV here…"
+                    className="w-full min-h-[140px] rounded-xl border border-[#F5B8B0] bg-[#FDF3EE] p-3 text-[12px] font-mono"
+                  />
+
+                  <p className="text-[11px] text-[#0A2041]/60">
+                    Expected columns (example): <code>round,game_index,team_a_id,team_b_id,winner_id</code>
+                  </p>
+
+                  {importStatus && <p className="text-xs text-[#0A2041]/80">{importStatus}</p>}
+                </div>
+              </div>
+
+              {/* Danger Zone */}
               <div className="bg-[#FDF3EE] border border-[#CA4C4C] rounded-2xl p-5 shadow-sm">
                 <h2 className="text-sm font-semibold mb-2 text-[#CA4C4C]">Danger Zone</h2>
 
@@ -890,9 +991,7 @@ export default function AdminSettingsPage() {
                   </button>
                 </div>
 
-                {maintenanceStatus && (
-                  <p className="mt-3 text-xs text-[#0A2041]/80">{maintenanceStatus}</p>
-                )}
+                {maintenanceStatus && <p className="mt-3 text-xs text-[#0A2041]/80">{maintenanceStatus}</p>}
               </div>
             </section>
           )}
