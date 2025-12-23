@@ -101,32 +101,35 @@ export default function SignInClient() {
     }
   }
 
-  async function handleForgotPassword() {
-    setMessage(null);
-    if (!email) {
-      setMessage("Enter your email first, then click Forgot password.");
+async function handleForgotPassword() {
+  setMessage(null);
+
+  if (!email) {
+    setMessage("Enter your email first, then click Forgot password.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setMessage(error.message);
       return;
     }
 
-    try {
-      setLoading(true);
-
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/sign-in`,
-      });
-
-      if (error) {
-        setMessage(error.message);
-        return;
-      }
-
-      setMessage("Password reset email sent. Check your inbox.");
-    } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
+    setMessage("Password reset email sent. Check your inbox.");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Something went wrong.";
+    setMessage(msg);
+  } finally {
+    setLoading(false);
   }
+}
+
 
   return (
     <main className="mx-auto max-w-md p-6">
