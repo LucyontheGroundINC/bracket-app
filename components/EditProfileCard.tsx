@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import Link from "next/link";
+
 
 export default function EditProfileCard() {
   const [displayName, setDisplayName] = useState('');
@@ -139,6 +141,15 @@ export default function EditProfileCard() {
             <p className="text-[10px] text-[#0A2041]/50">
               This is what will appear on the leaderboard and in shared links.
             </p>
+            <div className="mt-4 pt-3 border-t border-[#F5B8B0]">
+  <Link
+    href="/change-password"
+    className="text-xs font-semibold text-[#CA4C4C] hover:underline"
+  >
+    Change password
+  </Link>
+</div>
+
           </div>
 
           {error && (
