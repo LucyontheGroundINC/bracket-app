@@ -43,6 +43,8 @@ type PickRow = {
   chosen_winner: 'team1' | 'team2' | null;
 };
 
+type BracketViewMode = 'guided' | 'full';
+
 // ------------------ Config ------------------
 const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
 
@@ -89,13 +91,7 @@ export default function BracketPage() {
   const winnerMode: 'user' | 'admin' = isAdmin ? 'admin' : 'user';
 
   const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 1024); // lg breakpoint
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const [viewMode, setViewMode] = useState<BracketViewMode>('guided');
 
   const MOBILE_REGIONS = ['East', 'West', 'South', 'Midwest', 'Final Four'] as const;
   type MobileRegion = (typeof MOBILE_REGIONS)[number];
@@ -108,6 +104,19 @@ export default function BracketPage() {
   // Lock state
   const [isLocked, setIsLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
+
+  // ------------------ Detect mobile + default view mode ------------------
+  useEffect(() => {
+    const onResize = () => {
+      const mobile = window.innerWidth < 1024; // lg breakpoint
+      setIsMobile(mobile);
+      setViewMode(mobile ? 'guided' : 'full');
+    };
+
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // ------------------ Load Data ------------------
   useEffect(() => {
@@ -289,6 +298,7 @@ export default function BracketPage() {
     return map;
   }, [matches]);
 
+  // ------------------ Mobile guided view ------------------
   const renderMobileBracket = () => {
     const regionKey = mobileRegion;
     const roundMatches =
@@ -973,13 +983,46 @@ export default function BracketPage() {
             <span
               className={[
                 'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] font-semibold border',
-                isLocked ? 'bg-[#CA4C4C]/10 border-[#CA4C4C] text-[#7b2525]' : 'bg-[#A7C4E7]/30 border-[#A7C4E7] text-[#0A2041]',
+                isLocked
+                  ? 'bg-[#CA4C4C]/10 border-[#CA4C4C] text-[#7b2525]'
+                  : 'bg-[#A7C4E7]/30 border-[#A7C4E7] text-[#0A2041]',
               ].join(' ')}
             >
               {isLocked ? 'Locked' : 'Open for picks'}
             </span>
           </h1>
           {lockMessage && <p className="text-[11px] text-[#0A2041]/70">{lockMessage}</p>}
+
+          {/* MOBILE view toggle */}
+          {isMobile && (
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setViewMode('guided')}
+                className={[
+                  'px-3 py-1 rounded-full text-[11px] font-semibold border transition',
+                  viewMode === 'guided'
+                    ? 'bg-[#0A2041] text-[#F8F5EE] border-[#0A2041]'
+                    : 'bg-white/70 text-[#0A2041] border-[#F9DCD8]',
+                ].join(' ')}
+              >
+                Guided picks
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('full')}
+                className={[
+                  'px-3 py-1 rounded-full text-[11px] font-semibold border transition',
+                  viewMode === 'full'
+                    ? 'bg-[#CA4C4C] text-[#F8F5EE] border-[#CA4C4C]'
+                    : 'bg-white/70 text-[#0A2041] border-[#F9DCD8]',
+                ].join(' ')}
+              >
+                Full bracket
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-2 text-right text-xs text-[#0A2041]/60">
@@ -998,12 +1041,21 @@ export default function BracketPage() {
         </div>
       </header>
 
+      {/* Optional helper text for full bracket on mobile */}
+      {isMobile && viewMode === 'full' && (
+        <div className="max-w-6xl mx-auto mb-3 text-[11px] text-[#0A2041]/60 px-1">
+          Tip: swipe left/right to scroll the full bracket.
+        </div>
+      )}
+
       {/* Lock status banner */}
       {lockMessage && (
         <div
           className={[
             'max-w-6xl mx-auto mb-4 text-sm px-4 py-3 rounded-2xl border shadow-sm',
-            isLocked ? 'bg-[#CA4C4C]/10 border-[#CA4C4C] text-[#7b2525]' : 'bg-[#A7C4E7]/20 border-[#A7C4E7] text-[#0A2041]',
+            isLocked
+              ? 'bg-[#CA4C4C]/10 border-[#CA4C4C] text-[#7b2525]'
+              : 'bg-[#A7C4E7]/20 border-[#A7C4E7] text-[#0A2041]',
           ].join(' ')}
         >
           <span className="font-semibold mr-1">{isLocked ? 'Picks locked' : 'Picks are open'}</span>
@@ -1011,8 +1063,8 @@ export default function BracketPage() {
         </div>
       )}
 
-      {/* Main layout: left stack + center Final Four + right stack */}
-      {isMobile ? (
+      {/* Main layout: guided mobile OR full bracket (also allowed on mobile) */}
+      {isMobile && viewMode === 'guided' ? (
         <div className="pb-10">{renderMobileBracket()}</div>
       ) : (
         <div className="overflow-x-auto">
