@@ -2,8 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import Link from "next/link";
+import Link from 'next/link';
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'Unexpected error saving profile.';
+}
+
+type UsersRow = {
+  id: string;
+  email: string | null;
+  display_name?: string | null;
+  displayName?: string | null;
+  username?: string | null;
+  name?: string | null;
+  full_name?: string | null;
+};
 
 export default function EditProfileCard() {
   const [displayName, setDisplayName] = useState('');
@@ -42,25 +57,35 @@ export default function EditProfileCard() {
           console.warn('Error loading user row from users table:', dbError.message);
         }
 
+        const row = (dbUser ?? null) as UsersRow | null;
+
         // 3) Choose a starting value for display name
         const existingDisplayName =
-          dbUser?.display_name ??
-          dbUser?.displayName ??
-          dbUser?.username ??
-          dbUser?.name ??
-          dbUser?.full_name ??
-          authUser.user_metadata?.display_name ??
-          authUser.user_metadata?.full_name ??
+          row?.display_name ??
+          row?.displayName ??
+          row?.username ??
+          row?.name ??
+          row?.full_name ??
+          (authUser.user_metadata &&
+          typeof authUser.user_metadata === 'object' &&
+          'display_name' in authUser.user_metadata
+            ? (authUser.user_metadata as Record<string, unknown>).display_name
+            : null) ??
+          (authUser.user_metadata &&
+          typeof authUser.user_metadata === 'object' &&
+          'full_name' in authUser.user_metadata
+            ? (authUser.user_metadata as Record<string, unknown>).full_name
+            : null) ??
           (authUser.email ? authUser.email.split('@')[0] : '') ??
           '';
 
-        setDisplayName(existingDisplayName);
+        setDisplayName(typeof existingDisplayName === 'string' ? existingDisplayName : String(existingDisplayName ?? ''));
       } finally {
         setLoading(false);
       }
     };
 
-    loadProfile();
+    void loadProfile();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -89,15 +114,12 @@ export default function EditProfileCard() {
         return;
       }
 
-      // 🔐 This is the important part:
       // write into public.users.display_name
-      const { error: upsertError } = await supabase
-        .from('users')
-        .upsert({
-          id: authUser.id,
-          email: authUser.email,
-          display_name: cleanedName,
-        });
+      const { error: upsertError } = await supabase.from('users').upsert({
+        id: authUser.id,
+        email: authUser.email,
+        display_name: cleanedName,
+      });
 
       if (upsertError) {
         console.error('Error saving display name:', upsertError.message);
@@ -106,9 +128,10 @@ export default function EditProfileCard() {
       }
 
       setStatus('Profile updated!');
-    } catch (err: any) {
-      console.error('Unexpected error saving profile:', err);
-      setError('Unexpected error saving profile.');
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      console.error('Unexpected error saving profile:', message);
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -116,9 +139,7 @@ export default function EditProfileCard() {
 
   return (
     <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
-      <h2 className="text-sm font-semibold text-[#CA4C4C] mb-2">
-        Profile
-      </h2>
+      <h2 className="text-sm font-semibold text-[#CA4C4C] mb-2">Profile</h2>
       <p className="text-xs text-[#0A2041]/75 mb-3">
         Set the name everyone sees on the leaderboard and shared brackets.
       </p>
@@ -141,27 +162,19 @@ export default function EditProfileCard() {
             <p className="text-[10px] text-[#0A2041]/50">
               This is what will appear on the leaderboard and in shared links.
             </p>
-            <div className="mt-4 pt-3 border-t border-[#F5B8B0]">
-  <Link
-    href="/change-password"
-    className="text-xs font-semibold text-[#CA4C4C] hover:underline"
-  >
-    Change password
-  </Link>
-</div>
 
+            <div className="mt-4 pt-3 border-t border-[#F5B8B0]">
+              <Link
+                href="/change-password"
+                className="text-xs font-semibold text-[#CA4C4C] hover:underline"
+              >
+                Change password
+              </Link>
+            </div>
           </div>
 
-          {error && (
-            <p className="text-[11px] text-[#CA4C4C] font-medium">
-              {error}
-            </p>
-          )}
-          {status && (
-            <p className="text-[11px] text-[#0A2041]/70">
-              {status}
-            </p>
-          )}
+          {error && <p className="text-[11px] text-[#CA4C4C] font-medium">{error}</p>}
+          {status && <p className="text-[11px] text-[#0A2041]/70">{status}</p>}
 
           <button
             type="submit"
@@ -175,5 +188,3 @@ export default function EditProfileCard() {
     </div>
   );
 }
-
-

@@ -21,25 +21,11 @@ export async function GET() {
 
     return NextResponse.json(rows[0] ?? null);
   } catch (e: unknown) {
-    const err = e as any;
+  console.error(
+    "[tournaments] error:",
+    e instanceof Error ? e.message : e
+  );
+}
 
-    console.error("[tournaments/active] error:", err);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        marker: "tournaments-active-v3",
-        message: err?.message ?? String(err),
-        // These often contain the real Postgres error:
-        cause: err?.cause?.message ?? err?.cause ?? null,
-        code: err?.code ?? null,
-        detail: err?.detail ?? null,
-        hint: err?.hint ?? null,
-        // Sometimes drizzle wraps the query:
-        query: err?.query ?? null,
-      },
-      { status: 500 }
-    );
-  }
 }
 

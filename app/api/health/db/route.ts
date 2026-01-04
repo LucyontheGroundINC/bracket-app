@@ -5,9 +5,20 @@ export async function GET() {
   try {
     const { rows } = await pool.query("select now() as now");
     return NextResponse.json({ ok: true, now: rows[0].now });
-  } catch (e: any) {
-    console.error("[/api/health/db] pool error:", e?.message);
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+} catch (e: unknown) {
+  let message = "Unknown error";
+
+  if (e instanceof Error) {
+    message = e.message;
+  } else if (typeof e === "string") {
+    message = e;
   }
+
+  return NextResponse.json(
+    { error: message },
+    { status: 500 }
+  );
+}
+
 }
 

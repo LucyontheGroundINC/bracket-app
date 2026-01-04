@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { teams, games } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 /**
  * POST /api/games/seed
@@ -76,7 +76,19 @@ export async function POST(req: Request) {
 
     const inserted = await db.insert(games).values(values).returning();
     return NextResponse.json({ ok: true, created: inserted.length, games: inserted }, { status: 201 });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });
+ } catch (e: unknown) {
+  let message = "Unknown error";
+
+  if (e instanceof Error) {
+    message = e.message;
+  } else if (typeof e === "string") {
+    message = e;
   }
+
+  return NextResponse.json(
+    { error: message },
+    { status: 500 }
+  );
+}
+
 }

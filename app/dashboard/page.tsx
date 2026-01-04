@@ -10,6 +10,7 @@ const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
 type UserInfo = {
   id: string;
   displayName: string;
+  email: string | null;
 };
 
 export default function DashboardPage() {
@@ -20,82 +21,44 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadUser = async () => {
       try {
+        setLoadingUser(true);
+
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+
+        if (!session) {
+          setUser(null);
+          setAuthEmail(null);
+          return;
+        }
+
         const { data: auth, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error('Error loading auth user in dashboard:', error.message);
+        if (error || !auth.user) {
+     console.error(
+  "Error loading auth user in dashboard:",
+  error instanceof Error ? error.message : String(error)
+);
+
           setUser(null);
           setAuthEmail(null);
           return;
         }
 
-        const authUser = auth.user;
-        if (!authUser) {
-          setUser(null);
-          setAuthEmail(null);
-          return;
-        }
+        const u = auth.user;
 
-        setAuthEmail(authUser.email ?? null);
-
-        let displayNameFromDb: string | null = null;
-
-        // --- 1) Try to load from users by id ---
-        try {
-          const { data: byId, error: byIdError } = await supabase
-            .from('users')
-            .select('id, display_name, email')
-            .eq('id', authUser.id)
-            .maybeSingle();
-
-          if (byIdError) {
-            console.warn('Error loading user by id from users table:', byIdError.message);
-          }
-
-          if (byId && byId.display_name) {
-            displayNameFromDb = byId.display_name as string;
-          } else if (byId && !byId.display_name && byId.email) {
-            // there is a row, but no display_name yet
-            displayNameFromDb = (byId.email as string).split('@')[0];
-          }
-        } catch (err) {
-          console.warn('Unexpected error querying users by id:', err);
-        }
-
-        // --- 2) If still nothing, try loading by email (fallback) ---
-        if (!displayNameFromDb && authUser.email) {
-          try {
-            const { data: byEmail, error: byEmailError } = await supabase
-              .from('users')
-              .select('id, display_name, email')
-              .eq('email', authUser.email)
-              .maybeSingle();
-
-            if (byEmailError) {
-              console.warn('Error loading user by email from users table:', byEmailError.message);
-            }
-
-            if (byEmail && byEmail.display_name) {
-              displayNameFromDb = byEmail.display_name as string;
-            } else if (byEmail && !byEmail.display_name && byEmail.email) {
-              displayNameFromDb = (byEmail.email as string).split('@')[0];
-            }
-          } catch (err) {
-            console.warn('Unexpected error querying users by email:', err);
-          }
-        }
-
-        // --- 3) Final fallbacks (auth metadata or email prefix) ---
-        const finalDisplayName =
-          displayNameFromDb ||
-          authUser.user_metadata?.display_name ||
-          authUser.user_metadata?.full_name ||
-          (authUser.email ? authUser.email.split('@')[0] : null) ||
-          'Mystery Player';
+        const displayName =
+          (u.user_metadata?.displayName as string | undefined) ||
+          (u.user_metadata?.full_name as string | undefined) ||
+          (u.user_metadata?.name as string | undefined) ||
+          (u.email ? u.email.split('@')[0] : 'Player');
 
         setUser({
-          id: authUser.id,
-          displayName: finalDisplayName,
+          id: u.id,
+          email: u.email ?? null,
+          displayName,
         });
+
+        setAuthEmail(u.email ?? null);
       } finally {
         setLoadingUser(false);
       }
@@ -144,14 +107,12 @@ export default function DashboardPage() {
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/dashboard/brackets"
-
                   className="inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a] transition"
                 >
                   Go to My Bracket
                 </Link>
                 <Link
                   href="/dashboard/leaderboard"
-
                   className="inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0] transition"
                 >
                   View Leaderboard
@@ -169,7 +130,6 @@ export default function DashboardPage() {
                   <span>See the full bracket layout</span>
                   <Link
                     href="/dashboard/brackets"
-
                     className="text-[#CA4C4C] hover:underline font-semibold"
                   >
                     Open bracket
@@ -179,7 +139,6 @@ export default function DashboardPage() {
                   <span>Check your rank on the leaderboard</span>
                   <Link
                     href="/dashboard/leaderboard"
-
                     className="text-[#CA4C4C] hover:underline font-semibold"
                   >
                     Leaderboard
@@ -197,7 +156,7 @@ export default function DashboardPage() {
               </ul>
             </div>
 
-            {/* Admin hint (based on email, but email never shown in UI) */}
+            {/* Admin hint */}
             {isAdmin && (
               <div className="bg-[#FDF3EE] border border-dashed border-[#CA4C4C] rounded-2xl p-4 shadow-sm">
                 <h2 className="text-sm font-semibold text-[#CA4C4C] mb-1">
@@ -226,4 +185,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

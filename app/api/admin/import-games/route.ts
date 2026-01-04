@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { games } from "@/db/schema";
 import { sql } from "drizzle-orm";
 
 export const runtime = "nodejs";

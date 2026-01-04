@@ -16,7 +16,7 @@ function safeParse(url?: string) {
       db: u.pathname,
       sslmode: u.searchParams.get("sslmode"),
     };
-  } catch (e) {
+  } catch {
     return { parseError: true, valueStartsWith: url.slice(0, 40) };
   }
 }

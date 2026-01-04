@@ -16,6 +16,12 @@ type Game = {
   winnerId: number | null;
 };
 
+function getErrorMessage(e: unknown, fallback = "Something went wrong") {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return fallback;
+}
+
 export default function AdminGamesPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTid, setSelectedTid] = useState<number | null>(null);
@@ -38,11 +44,14 @@ export default function AdminGamesPage() {
       try {
         const res = await fetch("/api/tournaments");
         if (!res.ok) throw new Error("Failed to load tournaments");
+
         const rows = (await res.json()) as Tournament[];
         setTournaments(rows);
-        if (rows.length && selectedTid == null) setSelectedTid(rows[0].id);
-      } catch (e: any) {
-        toast.error(e?.message ?? "Could not load tournaments");
+
+        // set default tournament ONCE without referencing selectedTid in deps
+        setSelectedTid((prev) => prev ?? (rows[0]?.id ?? null));
+      } catch (e: unknown) {
+        toast.error(getErrorMessage(e, "Could not load tournaments"));
       }
     })();
   }, []);
@@ -50,14 +59,16 @@ export default function AdminGamesPage() {
   // ---- load teams when tournament changes ----
   useEffect(() => {
     if (!selectedTid) return;
+
     (async () => {
       try {
         const res = await fetch(`/api/teams?tournamentId=${selectedTid}`);
         if (!res.ok) throw new Error("Failed to load teams");
+
         const rows = (await res.json()) as Team[];
         setTeams(rows);
-      } catch (e: any) {
-        toast.error(e?.message ?? "Could not load teams");
+      } catch (e: unknown) {
+        toast.error(getErrorMessage(e, "Could not load teams"));
       }
     })();
   }, [selectedTid]);
@@ -65,6 +76,7 @@ export default function AdminGamesPage() {
   // ---- load games when tournament/round changes ----
   useEffect(() => {
     if (!selectedTid) return;
+
     (async () => {
       setLoading(true);
       try {
@@ -72,12 +84,21 @@ export default function AdminGamesPage() {
           round === ""
             ? `/api/games?tournamentId=${selectedTid}`
             : `/api/games?tournamentId=${selectedTid}&round=${round}`;
+
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to load games");
-        const rows = (await res.json()) as Game[];
-        setGames(rows);
-      } catch (e: any) {
-        toast.error(e?.message ?? "Could not load games");
+        const json = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          const msg =
+            json && typeof json === "object" && "error" in json
+              ? String((json as { error?: unknown }).error ?? "Failed to load games")
+              : "Failed to load games";
+          throw new Error(msg);
+        }
+
+        setGames((json ?? []) as Game[]);
+      } catch (e: unknown) {
+        toast.error(getErrorMessage(e, "Could not load games"));
       } finally {
         setLoading(false);
       }
@@ -89,45 +110,73 @@ export default function AdminGamesPage() {
 
   const roundsAvailable = useMemo(() => {
     const set = new Set<number>();
-    games.forEach((g) => set.add(g.round));
-    return [...(set.size ? Array.from(set) : [1, 2, 3, 4, 5, 6])].sort((a, b) => a - b);
+    for (const g of games) set.add(g.round);
+
+    const fallback = [1, 2, 3, 4, 5, 6];
+    const arr = set.size ? Array.from(set) : fallback;
+    return arr.sort((a, b) => a - b);
   }, [games]);
 
   async function updateWinner(gameId: number, winnerId: number | "") {
     try {
       const saving = toast.loading("Updating winner…");
-      const body: Partial<Game> = { winnerId: winnerId === "" ? null : Number(winnerId) };
+
+      const body: { winnerId: number | null } = {
+        winnerId: winnerId === "" ? null : Number(winnerId),
+      };
+
       const res = await fetch(`/api/games/${gameId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Failed to update");
 
-      setGames((prev) => prev.map((g) => (g.id === gameId ? ({ ...g, winnerId: body.winnerId ?? null } as Game) : g)));
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg =
+          json && typeof json === "object" && "error" in json
+            ? String((json as { error?: unknown }).error ?? "Failed to update")
+            : "Failed to update";
+        throw new Error(msg);
+      }
+
+      setGames((prev) =>
+        prev.map((g) => (g.id === gameId ? { ...g, winnerId: body.winnerId } : g))
+      );
+
       toast.success("Winner updated", { id: saving });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not update winner");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not update winner"));
     }
   }
 
   async function deleteGame(id: number) {
     const sure = confirm("Delete this game?");
     if (!sure) return;
+
     try {
       const res = await fetch(`/api/games/${id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Failed to delete");
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg =
+          json && typeof json === "object" && "error" in json
+            ? String((json as { error?: unknown }).error ?? "Failed to delete")
+            : "Failed to delete";
+        throw new Error(msg);
+      }
+
       setGames((prev) => prev.filter((g) => g.id !== id));
       toast.success("Game deleted");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not delete");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not delete"));
     }
   }
 
   async function quickAddGame(e: React.FormEvent) {
     e.preventDefault();
+
     if (!selectedTid) return toast.error("Pick a tournament");
     if (qaRound === "" || qaGameIndex === "") return toast.error("Round and Game Index are required");
 
@@ -141,35 +190,47 @@ export default function AdminGamesPage() {
 
     try {
       const saving = toast.loading("Creating game…");
+
       const res = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Failed to create game");
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg =
+          json && typeof json === "object" && "error" in json
+            ? String((json as { error?: unknown }).error ?? "Failed to create game")
+            : "Failed to create game";
+        throw new Error(msg);
+      }
 
       toast.success("Game created", { id: saving });
+
       // refresh list
       const url =
         round === ""
           ? `/api/games?tournamentId=${selectedTid}`
           : `/api/games?tournamentId=${selectedTid}&round=${round}`;
       const r2 = await fetch(url);
-      setGames(await r2.json());
+      const j2 = await r2.json().catch(() => []);
+      setGames((j2 ?? []) as Game[]);
 
       // reset quick add fields
       setQaGameIndex("");
       setQaTeamA("");
       setQaTeamB("");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not create game");
+    } catch (e2: unknown) {
+      toast.error(getErrorMessage(e2, "Could not create game"));
     }
   }
 
-  // --- Step 3A: seed round 1 from team seeds ---
+  // --- Seed round 1 from team seeds ---
   async function seedRound1() {
     if (!selectedTid) return toast.error("Pick a tournament first");
+
     const saving = toast.loading("Seeding Round 1…");
     try {
       const res = await fetch("/api/games/seed", {
@@ -177,18 +238,34 @@ export default function AdminGamesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tournamentId: selectedTid, round: 1 }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? "Failed to seed");
-      toast.success(`Created ${json.created ?? 0} games`, { id: saving });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg =
+          json && typeof json === "object" && "error" in json
+            ? String((json as { error?: unknown }).error ?? "Failed to seed")
+            : "Failed to seed";
+        throw new Error(msg);
+      }
+
+      const created =
+        json && typeof json === "object" && "created" in json
+          ? Number((json as { created?: unknown }).created ?? 0)
+          : 0;
+
+      toast.success(`Created ${created} games`, { id: saving });
+
       // refresh list
       const url =
         round === ""
           ? `/api/games?tournamentId=${selectedTid}`
           : `/api/games?tournamentId=${selectedTid}&round=${round}`;
       const r2 = await fetch(url);
-      setGames(await r2.json());
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not seed");
+      const j2 = await r2.json().catch(() => []);
+      setGames((j2 ?? []) as Game[]);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Could not seed Round 1"), { id: saving });
     }
   }
 
@@ -233,7 +310,6 @@ export default function AdminGamesPage() {
             </select>
           </div>
 
-          {/* Step 3A button – placed right after the Round selector */}
           <button
             onClick={seedRound1}
             className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
@@ -278,7 +354,9 @@ export default function AdminGamesPage() {
                         <select
                           className="border rounded px-2 py-1"
                           value={g.winnerId ?? ""}
-                          onChange={(e) => updateWinner(g.id, e.target.value === "" ? "" : Number(e.target.value))}
+                          onChange={(e) =>
+                            updateWinner(g.id, e.target.value === "" ? "" : Number(e.target.value))
+                          }
                         >
                           <option value="">—</option>
                           {g.teamAId && <option value={g.teamAId}>{teamName(g.teamAId)}</option>}
@@ -325,6 +403,7 @@ export default function AdminGamesPage() {
                 onChange={(e) => setQaRound(e.target.value === "" ? "" : Number(e.target.value))}
               />
             </div>
+
             <div className="grid gap-1">
               <label className="text-sm">Game Index</label>
               <input
@@ -332,9 +411,12 @@ export default function AdminGamesPage() {
                 min={1}
                 className="border rounded px-3 py-2 w-28"
                 value={qaGameIndex}
-                onChange={(e) => setQaGameIndex(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                  setQaGameIndex(e.target.value === "" ? "" : Number(e.target.value))
+                }
               />
             </div>
+
             <div className="grid gap-1">
               <label className="text-sm">Team A</label>
               <select
@@ -350,6 +432,7 @@ export default function AdminGamesPage() {
                 ))}
               </select>
             </div>
+
             <div className="grid gap-1">
               <label className="text-sm">Team B</label>
               <select
@@ -365,6 +448,7 @@ export default function AdminGamesPage() {
                 ))}
               </select>
             </div>
+
             <button
               className="rounded bg-black text-white px-4 py-2 disabled:opacity-60"
               disabled={!selectedTid || qaRound === "" || qaGameIndex === ""}

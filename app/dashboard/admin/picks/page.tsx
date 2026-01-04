@@ -79,7 +79,7 @@ export default function AdminPicksPage() {
         console.error('Error loading picks for admin:', error.message);
       } else {
         // Let TypeScript chill, we’ll normalize at render time
-        setPicks((data || []) as any as AdminPickRow[]);
+        setPicks((data || []) as AdminPickRow[]);
       }
 
       setLoading(false);

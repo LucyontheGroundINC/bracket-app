@@ -6,8 +6,29 @@ function roundPoints(round: number) {
   return Math.pow(2, Math.max(0, round - 1)); // 1,2,4,8,16,32
 }
 
+type MatchRow = {
+  id: number | string;
+  round: number | null;
+  winner: "team1" | "team2" | null;
+};
+
+type PickRow = {
+  user_id: string | number;
+  match_id: string | number;
+  chosen_winner: "team1" | "team2" | null;
+};
+
+type UserRow = {
+  id: string | number;
+  display_name?: string | null;
+  displayName?: string | null;
+  name?: string | null;
+  username?: string | null;
+  full_name?: string | null;
+};
+
 // GET /api/scores/leaderboard
-export async function GET(_req: Request) {
+export async function GET() {
   try {
     if (!supabaseAdmin) {
       console.error("[leaderboard] supabaseAdmin is not configured");
@@ -28,32 +49,23 @@ export async function GET(_req: Request) {
 
     if (matchesError) {
       console.error("[leaderboard] Error loading matches:", matchesError);
-      return NextResponse.json(
-        { error: "Failed to load matches" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to load matches" }, { status: 500 });
     }
 
-    if (!matches || matches.length === 0) {
-      return NextResponse.json([]);
-    }
+    const matchRows = (matches ?? []) as MatchRow[];
+    if (matchRows.length === 0) return NextResponse.json([]);
 
-    const matchMeta = new Map<
-      string,
-      { round: number; winner: "team1" | "team2" }
-    >();
+    const matchMeta = new Map<string, { round: number; winner: "team1" | "team2" }>();
 
-    for (const m of matches as any[]) {
+    for (const m of matchRows) {
       if (!m.winner) continue;
       matchMeta.set(String(m.id), {
         round: m.round ?? 1,
-        winner: m.winner as "team1" | "team2",
+        winner: m.winner,
       });
     }
 
-    if (matchMeta.size === 0) {
-      return NextResponse.json([]);
-    }
+    if (matchMeta.size === 0) return NextResponse.json([]);
 
     const matchIds = Array.from(matchMeta.keys());
 
@@ -65,23 +77,16 @@ export async function GET(_req: Request) {
 
     if (picksError) {
       console.error("[leaderboard] Error loading picks:", picksError);
-      return NextResponse.json(
-        { error: "Failed to load picks" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to load picks" }, { status: 500 });
     }
 
-    if (!picks || picks.length === 0) {
-      return NextResponse.json([]);
-    }
+    const pickRows = (picks ?? []) as PickRow[];
+    if (pickRows.length === 0) return NextResponse.json([]);
 
     // 3) Aggregate score + correct picks per user
-    const totalsByUser = new Map<
-      string,
-      { totalScore: number; correctCount: number }
-    >();
+    const totalsByUser = new Map<string, { totalScore: number; correctCount: number }>();
 
-    for (const p of picks as any[]) {
+    for (const p of pickRows) {
       const meta = matchMeta.get(String(p.match_id));
       if (!meta) continue;
 
@@ -91,19 +96,13 @@ export async function GET(_req: Request) {
       const points = roundPoints(meta.round);
       const userId = String(p.user_id);
 
-      const prev = totalsByUser.get(userId) ?? {
-        totalScore: 0,
-        correctCount: 0,
-      };
-
+      const prev = totalsByUser.get(userId) ?? { totalScore: 0, correctCount: 0 };
       prev.totalScore += points;
       prev.correctCount += 1;
       totalsByUser.set(userId, prev);
     }
 
-    if (totalsByUser.size === 0) {
-      return NextResponse.json([]);
-    }
+    if (totalsByUser.size === 0) return NextResponse.json([]);
 
     // 4) Look up display names from your "users" table
     const userIds = Array.from(totalsByUser.keys());
@@ -112,19 +111,18 @@ export async function GET(_req: Request) {
     if (userIds.length) {
       const { data: dbUsers, error: dbUsersError } = await supabaseAdmin
         .from("users")
-        .select("*")
+        .select("id, display_name, displayName, name, username, full_name")
         .in("id", userIds);
 
       if (dbUsersError) {
         console.warn("[leaderboard] Could not load users table:", dbUsersError);
-      } else if (dbUsers) {
-        for (const raw of dbUsers as any[]) {
+      } else {
+        const rows = (dbUsers ?? []) as UserRow[];
+        for (const raw of rows) {
           const id = String(raw.id);
-
-          // Prefer your canonical display_name column
           const displayName =
             raw.display_name ??
-            raw.displayName ?? // just in case
+            raw.displayName ??
             raw.name ??
             raw.username ??
             raw.full_name ??
@@ -138,32 +136,22 @@ export async function GET(_req: Request) {
     // 5) Build leaderboard response (NO EMAILS)
     const leaderboard = Array.from(totalsByUser.entries())
       .map(([userId, { totalScore, correctCount }]) => {
-        const info =
-          userInfo.get(userId) ?? ({ displayName: null } as const);
-
-        return {
-          userId,
-          displayName: info.displayName,
-          totalScore,
-          correctCount,
-        };
+        const info = userInfo.get(userId) ?? { displayName: null };
+        return { userId, displayName: info.displayName, totalScore, correctCount };
       })
       .sort((a, b) => {
-        if (b.totalScore !== a.totalScore) {
-          return b.totalScore - a.totalScore;
-        }
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
         const nameA = (a.displayName ?? "").toLowerCase();
         const nameB = (b.displayName ?? "").toLowerCase();
         return nameA.localeCompare(nameB);
       });
 
     return NextResponse.json(leaderboard);
-  } catch (e: any) {
-    console.error("[leaderboard] Unexpected error:", e);
-    return NextResponse.json(
-      { error: String(e?.message ?? e) },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    const message =
+      e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

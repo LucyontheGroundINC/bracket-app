@@ -16,7 +16,19 @@ type Game = {
 
 type Team = { id: number; name: string; seed: number | null };
 
-type PickRow = { id: number; bracketId: number; gameId: number; pickedTeamId: number; createdAt?: string | null };
+type PickRow = {
+  id: number;
+  bracketId: number;
+  gameId: number;
+  pickedTeamId: number;
+  createdAt?: string | null;
+};
+
+function getErrorMessage(e: unknown, fallback = "Unknown error") {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return fallback;
+}
 
 export default function BracketDetailPage() {
   const params = useParams<{ id: string }>();
@@ -33,19 +45,24 @@ export default function BracketDetailPage() {
   // ---- initial load: bracket -> tournament -> games/teams -> picks ----
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         setLoading(true);
 
         // 1) bracket (to get tournamentId)
         const bRes = await fetch(`/api/brackets/by-id?id=${bracketId}`);
-        const bracket = await bRes.json();
-        if (!bRes.ok || !bracket?.tournamentId) {
-          toast.error("Bracket not found");
+        const bracketJson = await bRes.json().catch(() => null);
+
+        const tidRaw = bracketJson?.tournamentId;
+        const tid = Number(tidRaw);
+
+        if (!bRes.ok || !Number.isFinite(tid)) {
+          toast.error(bracketJson?.error ?? "Bracket not found");
           router.push("/dashboard/brackets");
           return;
         }
-        const tid = Number(bracket.tournamentId);
+
         if (!mounted) return;
         setTournamentId(tid);
 
@@ -54,26 +71,36 @@ export default function BracketDetailPage() {
           fetch(`/api/games?tournamentId=${tid}`),
           fetch(`/api/teams?tournamentId=${tid}`),
         ]);
-        if (!gRes.ok) throw new Error("Failed to load games");
-        if (!tRes.ok) throw new Error("Failed to load teams");
-        const g = (await gRes.json()) as Game[];
-        const t = (await tRes.json()) as Team[];
+
+        const gJson = await gRes.json().catch(() => null);
+        const tJson = await tRes.json().catch(() => null);
+
+        if (!gRes.ok) throw new Error(gJson?.error ?? "Failed to load games");
+        if (!tRes.ok) throw new Error(tJson?.error ?? "Failed to load teams");
+
+        const g = (Array.isArray(gJson) ? gJson : []) as Game[];
+        const t = (Array.isArray(tJson) ? tJson : []) as Team[];
+
         if (!mounted) return;
         setGames(g.sort((a, b) => a.round - b.round || a.gameIndex - b.gameIndex));
         setTeams(t);
 
         // 3) existing picks
         const pRes = await fetch(`/api/picks/by-bracket/${bracketId}`);
-        if (!pRes.ok) throw new Error("Failed to load picks");
-        const pRows = (await pRes.json()) as PickRow[];
+        const pJson = await pRes.json().catch(() => null);
+        if (!pRes.ok) throw new Error(pJson?.error ?? "Failed to load picks");
+
+        const pRows = (Array.isArray(pJson) ? pJson : []) as PickRow[];
         if (!mounted) return;
         setPicks(new Map(pRows.map((r) => [r.gameId, r.pickedTeamId])));
-      } catch (e: any) {
-        toast.error(e?.message ?? "Failed to load bracket");
+      } catch (e: unknown) {
+        console.error("[BracketDetailPage] load error:", e);
+        toast.error(getErrorMessage(e, "Failed to load bracket"));
       } finally {
         if (mounted) setLoading(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -98,6 +125,7 @@ export default function BracketDetailPage() {
 
   async function savePick(gameId: number, pickedTeamId: number | "") {
     if (pickedTeamId === "") return; // no-op
+
     setSavingGameId(gameId);
 
     // optimistic update
@@ -109,20 +137,23 @@ export default function BracketDetailPage() {
     });
 
     const toastId = toast.loading("Saving pick…");
+
     try {
       const res = await fetch(`/api/picks/by-bracket/${bracketId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameId, pickedTeamId: Number(pickedTeamId) }),
       });
-      const json = await res.json();
+
+      const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error ?? "Failed to save pick");
 
       toast.success("Pick saved", { id: toastId });
-    } catch (e: any) {
-      // revert on failure
+    } catch (e: unknown) {
+      console.error("[BracketDetailPage] savePick error:", e);
+      // revert optimistic update
       setPicks(prev);
-      toast.error(e?.message ?? "Could not save pick", { id: toastId });
+      toast.error(getErrorMessage(e, "Could not save pick"), { id: toastId });
     } finally {
       setSavingGameId(null);
     }
@@ -159,7 +190,8 @@ export default function BracketDetailPage() {
                         <span className="w-16 text-xs text-gray-500">Game {g.gameIndex}</span>
 
                         <span className="flex-1">
-                          {teamName(g.teamAId)} <span className="text-gray-500">vs</span> {teamName(g.teamBId)}
+                          {teamName(g.teamAId)} <span className="text-gray-500">vs</span>{" "}
+                          {teamName(g.teamBId)}
                         </span>
 
                         <select
@@ -186,4 +218,3 @@ export default function BracketDetailPage() {
     </RequireAuth>
   );
 }
-

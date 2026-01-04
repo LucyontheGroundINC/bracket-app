@@ -4,10 +4,20 @@ import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const runtime = "nodejs";
+
+type RouteContext = { params: { id: string } };
+
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return "Unknown error";
+}
+
 // GET /api/users/:id
-export async function GET(_req: NextRequest, context: any) {
+export async function GET(_req: NextRequest, context: RouteContext) {
   try {
-    const { id } = await context.params;
+    const { id } = context.params;
 
     if (!id) {
       return NextResponse.json(
@@ -16,11 +26,7 @@ export async function GET(_req: NextRequest, context: any) {
       );
     }
 
-    const rows = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, id))
-      .limit(1);
+    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
 
     if (!rows.length) {
       return NextResponse.json(
@@ -41,9 +47,9 @@ export async function GET(_req: NextRequest, context: any) {
         createdAt: u.createdAt ?? null,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: e?.message ?? String(e) },
+      { ok: false, error: errorMessage(e) },
       { status: 500 }
     );
   }
@@ -51,9 +57,9 @@ export async function GET(_req: NextRequest, context: any) {
 
 // PUT /api/users/:id
 // Used by EditProfileCard to update displayName/avatarUrl
-export async function PUT(req: NextRequest, context: any) {
+export async function PUT(req: NextRequest, context: RouteContext) {
   try {
-    const { id } = await context.params;
+    const { id } = context.params;
 
     if (!id) {
       return NextResponse.json(
@@ -67,11 +73,19 @@ export async function PUT(req: NextRequest, context: any) {
       avatarUrl: string | null;
     }>;
 
-    const patch: any = {};
-    if (body.displayName !== undefined) patch.displayName = body.displayName;
-    if (body.avatarUrl !== undefined) patch.avatarUrl = body.avatarUrl;
+    // NOTE: Drizzle will error if you try to set null on non-null columns.
+    // So: null => "" (clear), undefined => "don't touch"
+    const patch: Partial<typeof users.$inferInsert> = {};
 
-    if (!Object.keys(patch).length) {
+    if (body.displayName !== undefined) {
+      patch.displayName = body.displayName ?? "";
+    }
+
+    if (body.avatarUrl !== undefined) {
+      patch.avatarUrl = body.avatarUrl ?? "";
+    }
+
+    if (Object.keys(patch).length === 0) {
       return NextResponse.json(
         { ok: false, error: "No fields to update" },
         { status: 400 }
@@ -103,10 +117,11 @@ export async function PUT(req: NextRequest, context: any) {
         createdAt: u.createdAt ?? null,
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: e?.message ?? String(e) },
+      { ok: false, error: errorMessage(e) },
       { status: 500 }
     );
   }
 }
+

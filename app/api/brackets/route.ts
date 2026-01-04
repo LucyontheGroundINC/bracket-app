@@ -16,23 +16,24 @@ export async function GET(req: Request) {
     // Minimal select (matches your UI expectations)
     const rows = await db
       .select({
-        id:       brackets.id,
-        name:     brackets.name,
+        id: brackets.id,
+        name: brackets.name,
         tournamentId: brackets.tournamentId,
-        totalPoints:  brackets.totalPoints,
+        totalPoints: brackets.totalPoints,
       })
       .from(brackets)
       .where(eq(brackets.userId, userId));
 
     // rows can be [], and that's OK
     return NextResponse.json(rows, { status: 200 });
-  } catch (e: any) {
-    // Surface the actual DB error so we can see what's wrong
-    console.error("[/api/brackets] DB error:", e?.message, e);
-    return NextResponse.json(
-      { error: e?.message ?? "Unknown DB error" },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    const message =
+      e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown DB error";
+
+    console.error("[/api/brackets] DB error:", message, e);
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
 

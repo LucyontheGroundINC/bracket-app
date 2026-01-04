@@ -49,11 +49,20 @@ export async function POST(req: NextRequest) {
       ok: true,
       deleted: deletedRows.length,
     });
-  } catch (err: any) {
-    console.error("reset-tournament-picks failed:", err);
-    return NextResponse.json(
-      { error: err?.message ?? "Unknown error" },
-      { status: 500 }
-    );
-  }
+ } catch (err: unknown) {
+  console.error("reset-tournament-picks failed:", err);
+
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+      ? err
+      : "Unknown error";
+
+  return NextResponse.json(
+    { error: message },
+    { status: 500 }
+  );
+}
+
 }

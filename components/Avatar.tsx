@@ -1,9 +1,13 @@
 // components/Avatar.tsx
 "use client";
 
+import Image from "next/image";
+import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+
 function getInitials(nameOrEmail: string | null | undefined) {
   if (!nameOrEmail) return "U";
-  const s = (nameOrEmail || "").trim();
+  const s = nameOrEmail.trim();
   if (!s) return "U";
   const parts = s.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -24,6 +28,7 @@ function getGradient(seed: string): { background: string } {
     ["#EC4899", "#BE185D"],
     ["#F43F5E", "#BE123C"],
   ];
+
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
@@ -38,38 +43,60 @@ export default function Avatar({
   email,
   src,
   size = 48,
+  className = "",
 }: {
   name?: string | null;
   email?: string | null;
-  src?: string | null;     // <- NEW
+  src?: string | null;
   size?: number;
+  className?: string;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Normalize src: treat empty string as "no src"
+  const imageSrc = useMemo(() => {
+    const s = (src ?? "").trim();
+    return s.length ? s : null;
+  }, [src]);
+
   const seed = (email || name || "user").toLowerCase();
   const initials = getInitials(name ?? email);
-  const style = {
+
+  const style: CSSProperties = {
     ...getGradient(seed),
     width: size,
     height: size,
     lineHeight: `${size}px`,
     fontSize: Math.max(12, Math.floor(size / 3)),
-  } as React.CSSProperties;
+  };
 
-  if (src) {
+  // If we have a src and it hasn't failed, render the image.
+  if (imageSrc && !imgFailed) {
     return (
-      <img
-        src={src}
-        alt={name || email || "Avatar"}
-        width={size}
-        height={size}
-        className="rounded-full object-cover"
+      <div
+        className={`relative rounded-full overflow-hidden ${className}`}
         style={{ width: size, height: size }}
-      />
+        aria-label={`Avatar ${name || email || ""}`}
+        title={name || email || ""}
+      >
+        <Image
+          src={imageSrc}
+          alt={name || email || "Avatar"}
+          fill
+          sizes={`${size}px`}
+          className="object-cover"
+          onError={() => setImgFailed(true)}
+          // If your avatar URLs are dynamic and you don't want Next caching surprises:
+          // unoptimized
+        />
+      </div>
     );
   }
 
+  // Fallback: initials
   return (
     <div
-      className="rounded-full text-white font-semibold text-center select-none drop-shadow flex items-center justify-center"
+      className={`rounded-full text-white font-semibold text-center select-none drop-shadow flex items-center justify-center ${className}`}
       style={style}
       aria-label={`Avatar ${name || email || ""}`}
       title={name || email || ""}
@@ -78,4 +105,5 @@ export default function Avatar({
     </div>
   );
 }
+
 

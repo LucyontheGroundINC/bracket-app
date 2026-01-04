@@ -44,10 +44,22 @@ export async function POST(req: Request) {
       .returning();
 
     return NextResponse.json({ ok: true, pick: newPick });
-  } catch (err: any) {
-    console.error(err);
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
-  }
+} catch (err: unknown) {
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+      ? err
+      : "Unknown error";
+
+  console.error(err);
+
+  return NextResponse.json(
+    { ok: false, error: message },
+    { status: 500 }
+  );
+}
+
 }
 
 

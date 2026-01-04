@@ -1,133 +1,47 @@
-// app/api/picks/by-bracket/[id]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+// app/api/brackets/by-id/route.ts
+import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { picks } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { brackets } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
-/**
- * GET /api/picks/by-bracket/:id[?gameId=45]
- * - Without gameId: return all picks for a bracket
- * - With gameId: return a single pick (404 if none)
- */
-export async function GET(req: NextRequest, context: any) {
-  try {
-    const { id } = await context.params;
-    const bracketId = Number(id);
+export const runtime = "nodejs";
 
-    if (Number.isNaN(bracketId)) {
-      return NextResponse.json({ error: "Invalid bracket id" }, { status: 400 });
-    }
+type BracketRow = typeof brackets.$inferSelect;
 
-    const url = new URL(req.url);
-    const gameIdParam = url.searchParams.get("gameId");
-
-    if (gameIdParam) {
-      const gameId = Number(gameIdParam);
-      if (Number.isNaN(gameId)) {
-        return NextResponse.json({ error: "Invalid gameId" }, { status: 400 });
-      }
-
-      const rows = await db
-        .select()
-        .from(picks)
-        .where(
-          and(eq(picks.bracketId, bracketId), eq(picks.gameId, gameId))
-        )
-        .limit(1);
-
-      if (!rows.length) {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
-      }
-
-      return NextResponse.json(rows[0]);
-    }
-
-    // No gameId → return all picks for bracket
-    const rows = await db
-      .select()
-      .from(picks)
-      .where(eq(picks.bracketId, bracketId));
-
-    return NextResponse.json(rows);
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? String(e) },
-      { status: 500 }
-    );
-  }
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return "Unknown error";
 }
 
 /**
- * POST /api/picks/by-bracket/:id
- * Body: { gameId: number, pickedTeamId: number }
- * - Upsert pick for (bracketId, gameId)
+ * GET /api/brackets/by-id?id=123
+ * Returns a single bracket row (404 if not found)
  */
-export async function POST(req: NextRequest, context: any) {
+export async function GET(req: Request) {
   try {
-    const { id } = await context.params;
-    const bracketId = Number(id);
+    const { searchParams } = new URL(req.url);
+    const idParam = searchParams.get("id");
+    const id = Number(idParam);
 
-    if (Number.isNaN(bracketId)) {
-      return NextResponse.json({ error: "Invalid bracket id" }, { status: 400 });
+    if (!idParam || !Number.isFinite(id)) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    const body = (await req.json()) as {
-      gameId?: number;
-      pickedTeamId?: number;
-    };
-
-    if (
-      body.gameId === undefined ||
-      body.pickedTeamId === undefined ||
-      Number.isNaN(Number(body.gameId)) ||
-      Number.isNaN(Number(body.pickedTeamId))
-    ) {
-      return NextResponse.json(
-        { error: "gameId and pickedTeamId are required numbers" },
-        { status: 400 }
-      );
-    }
-
-    const gameId = Number(body.gameId);
-    const pickedTeamId = Number(body.pickedTeamId);
-
-    // Check existing pick
-    const existing = await db
+    const rows: BracketRow[] = await db
       .select()
-      .from(picks)
-      .where(
-        and(eq(picks.bracketId, bracketId), eq(picks.gameId, gameId))
-      )
+      .from(brackets)
+      .where(eq(brackets.id, id))
       .limit(1);
 
-    let row;
+    const row = rows[0] ?? null;
 
-    if (existing.length) {
-      const updated = await db
-        .update(picks)
-        .set({ pickedTeamId })
-        .where(
-          and(eq(picks.bracketId, bracketId), eq(picks.gameId, gameId))
-        )
-        .returning();
-      row = updated[0];
-    } else {
-      const inserted = await db
-        .insert(picks)
-        .values({
-          bracketId,
-          gameId,
-          pickedTeamId,
-        } as any)
-        .returning();
-      row = inserted[0];
+    if (!row) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     return NextResponse.json(row);
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? String(e) },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    return NextResponse.json({ error: errorMessage(e) }, { status: 500 });
   }
 }

@@ -1,8 +1,14 @@
 // scripts/runMigrations.ts
-require("dotenv/config");
+import "dotenv/config";
 
-const { db, client } = require("../db/client");
-const { sql } = require("drizzle-orm");
+import { db, client } from "../db/client";
+import { sql } from "drizzle-orm";
+
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return "Unknown error";
+}
 
 async function main() {
   try {
@@ -22,15 +28,16 @@ async function main() {
     `);
 
     console.log("✅ users.display_name migration completed successfully");
-  } catch (err) {
-    console.error("❌ Migration error:", err);
-    console.error(err);
-    process.exit(1);
+  } catch (e: unknown) {
+    console.error("❌ Migration error:", errorMessage(e));
+    if (e instanceof Error) console.error(e);
+    process.exitCode = 1;
   } finally {
+    // Close the DB client if your db/client exports one
     if (client) {
       await client.end();
     }
   }
 }
 
-main();
+void main();

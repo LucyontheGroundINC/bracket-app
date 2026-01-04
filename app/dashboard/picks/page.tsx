@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 // same admin email as everywhere else
-const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
+const ADMIN_EMAIL = "lucyonthegroundwithrocks@gmail.com";
 
 type MatchInfo = {
   round: number;
@@ -16,7 +16,7 @@ type MatchInfo = {
 type AdminPickRow = {
   id: string;
   user_id: string;
-  chosen_winner: 'team1' | 'team2';
+  chosen_winner: "team1" | "team2";
   match: MatchInfo | MatchInfo[] | null;
 };
 
@@ -26,6 +26,51 @@ type Profile = {
   team_name: string | null;
   avatar_url: string | null;
 };
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isMatchInfo(v: unknown): v is MatchInfo {
+  if (!isObject(v)) return false;
+  return (
+    typeof v.round === "number" &&
+    typeof v.match_order === "number" &&
+    typeof v.team1_name === "string" &&
+    typeof v.team2_name === "string"
+  );
+}
+
+function isAdminPickRow(v: unknown): v is AdminPickRow {
+  if (!isObject(v)) return false;
+
+  const match = v.match;
+  const matchOk =
+    match === null ||
+    isMatchInfo(match) ||
+    (Array.isArray(match) && (match.length === 0 || isMatchInfo(match[0])));
+
+  return (
+    typeof v.id === "string" &&
+    typeof v.user_id === "string" &&
+    (v.chosen_winner === "team1" || v.chosen_winner === "team2") &&
+    matchOk
+  );
+}
+
+function isProfile(v: unknown): v is Profile {
+  if (!isObject(v)) return false;
+  // allow nullable strings
+  const isNullableString = (x: unknown) =>
+    x === null || typeof x === "string";
+
+  return (
+    typeof v.user_id === "string" &&
+    isNullableString(v.display_name) &&
+    isNullableString(v.team_name) &&
+    isNullableString(v.avatar_url)
+  );
+}
 
 export default function AdminPicksPage() {
   const [loading, setLoading] = useState(true);
@@ -47,7 +92,7 @@ export default function AdminPicksPage() {
       } = await supabase.auth.getUser();
 
       if (userError) {
-        console.error('Error getting user:', userError.message);
+        console.error("Error getting user:", userError.message);
         setIsAdmin(false);
         setAuthChecking(false);
         setLoading(false);
@@ -56,6 +101,7 @@ export default function AdminPicksPage() {
 
       const email = user?.email ?? null;
       setAdminEmail(email);
+
       const admin = email === ADMIN_EMAIL;
       setIsAdmin(admin);
       setAuthChecking(false);
@@ -67,7 +113,7 @@ export default function AdminPicksPage() {
 
       // admin: load all picks with match info
       const { data, error } = await supabase
-        .from('picks')
+        .from("picks")
         .select(
           `
           id,
@@ -81,33 +127,39 @@ export default function AdminPicksPage() {
           )
         `
         )
-        .order('user_id', { ascending: true })
-        .order('match_id', { ascending: true });
+        .order("user_id", { ascending: true })
+        .order("match_id", { ascending: true });
 
       if (error) {
-        console.error('Error loading picks for admin:', error.message);
-      } else {
-        const rows = (data || []) as any as AdminPickRow[];
-        setPicks(rows);
+        console.error("Error loading picks for admin:", error.message);
+        setLoading(false);
+        return;
+      }
 
-        // Load profiles for these user_ids
-        const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-        if (userIds.length > 0) {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, team_name, avatar_url')
-            .in('user_id', userIds);
+      const rows: AdminPickRow[] = Array.isArray(data)
+        ? data.filter(isAdminPickRow)
+        : [];
 
-          if (profileError) {
-            console.error('Error loading profiles:', profileError.message);
-          } else {
-            const map: Record<string, Profile> = {};
-            (profileData || []).forEach((p) => {
-              const profile = p as Profile;
+      setPicks(rows);
+
+      // Load profiles for these user_ids
+      const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+      if (userIds.length > 0) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, team_name, avatar_url")
+          .in("user_id", userIds);
+
+        if (profileError) {
+          console.error("Error loading profiles:", profileError.message);
+        } else {
+          const map: Record<string, Profile> = {};
+          if (Array.isArray(profileData)) {
+            profileData.filter(isProfile).forEach((profile) => {
               map[profile.user_id] = profile;
             });
-            setProfilesByUserId(map);
           }
+          setProfilesByUserId(map);
         }
       }
 
@@ -119,18 +171,18 @@ export default function AdminPicksPage() {
 
   const handleAdminUpdatePick = async (
     pickId: string,
-    newWinner: 'team1' | 'team2'
+    newWinner: "team1" | "team2"
   ) => {
     try {
       setSavingPickId(pickId);
 
       const { error } = await supabase
-        .from('picks')
+        .from("picks")
         .update({ chosen_winner: newWinner })
-        .eq('id', pickId);
+        .eq("id", pickId);
 
       if (error) {
-        console.error('Error updating pick as admin:', error.message);
+        console.error("Error updating pick as admin:", error.message);
         return;
       }
 
@@ -146,14 +198,11 @@ export default function AdminPicksPage() {
   };
 
   // group by user_id for display
-  const picksByUser = picks.reduce<Record<string, AdminPickRow[]>>(
-    (acc, row) => {
-      if (!acc[row.user_id]) acc[row.user_id] = [];
-      acc[row.user_id].push(row);
-      return acc;
-    },
-    {}
-  );
+  const picksByUser = picks.reduce<Record<string, AdminPickRow[]>>((acc, row) => {
+    if (!acc[row.user_id]) acc[row.user_id] = [];
+    acc[row.user_id].push(row);
+    return acc;
+  }, {});
 
   if (authChecking) {
     return (
@@ -175,9 +224,7 @@ export default function AdminPicksPage() {
             You are not authorized to view this page.
           </p>
           {adminEmail && (
-            <p className="text-xs text-gray-600 mt-2">
-              Logged in as: {adminEmail}
-            </p>
+            <p className="text-xs text-gray-600 mt-2">Logged in as: {adminEmail}</p>
           )}
         </div>
       </div>
@@ -199,9 +246,7 @@ export default function AdminPicksPage() {
     <div className="min-h-screen bg-white p-4 text-black">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-4">Admin Picks</h1>
-        <p className="text-xs text-gray-600 mb-4">
-          Logged in as admin: {adminEmail}
-        </p>
+        <p className="text-xs text-gray-600 mb-4">Logged in as admin: {adminEmail}</p>
 
         {!picks.length ? (
           <p className="text-sm text-gray-600">
@@ -216,20 +261,15 @@ export default function AdminPicksPage() {
               `User ${userId.slice(0, 6)}…`;
 
             return (
-              <div
-                key={userId}
-                className="mb-6 border rounded-lg p-3 bg-gray-50"
-              >
+              <div key={userId} className="mb-6 border rounded-lg p-3 bg-gray-50">
                 <div className="mb-2 flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-gray-900">
-                      {label}
-                    </div>
+                    <div className="text-sm font-semibold text-gray-900">{label}</div>
                     <div className="text-[11px] text-gray-500">
-                      User ID:{' '}
-                      <span className="font-mono text-[11px]">{userId}</span>
+                      User ID: <span className="font-mono text-[11px]">{userId}</span>
                     </div>
                   </div>
+
                   {profile?.avatar_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -268,9 +308,7 @@ export default function AdminPicksPage() {
                       }
 
                       const pickedName =
-                        p.chosen_winner === 'team1'
-                          ? match.team1_name
-                          : match.team2_name;
+                        p.chosen_winner === "team1" ? match.team1_name : match.team2_name;
 
                       return (
                         <tr key={p.id} className="border-b last:border-0">
@@ -279,33 +317,23 @@ export default function AdminPicksPage() {
                           <td className="py-1 pr-2">
                             {match.team1_name} vs {match.team2_name}
                           </td>
-                          <td className="py-1 pr-2 font-semibold">
-                            {pickedName}
-                          </td>
+                          <td className="py-1 pr-2 font-semibold">{pickedName}</td>
                           <td className="py-1">
                             <div className="flex gap-1">
                               <button
-                                onClick={() =>
-                                  handleAdminUpdatePick(p.id, 'team1')
-                                }
+                                onClick={() => handleAdminUpdatePick(p.id, "team1")}
                                 disabled={savingPickId === p.id}
                                 className={`px-2 py-1 rounded border text-[11px] hover:bg-gray-100 disabled:opacity-50 ${
-                                  p.chosen_winner === 'team1'
-                                    ? 'bg-blue-100 border-blue-500'
-                                    : ''
+                                  p.chosen_winner === "team1" ? "bg-blue-100 border-blue-500" : ""
                                 }`}
                               >
                                 {match.team1_name}
                               </button>
                               <button
-                                onClick={() =>
-                                  handleAdminUpdatePick(p.id, 'team2')
-                                }
+                                onClick={() => handleAdminUpdatePick(p.id, "team2")}
                                 disabled={savingPickId === p.id}
                                 className={`px-2 py-1 rounded border text-[11px] hover:bg-gray-100 disabled:opacity-50 ${
-                                  p.chosen_winner === 'team2'
-                                    ? 'bg-blue-100 border-blue-500'
-                                    : ''
+                                  p.chosen_winner === "team2" ? "bg-blue-100 border-blue-500" : ""
                                 }`}
                               >
                                 {match.team2_name}

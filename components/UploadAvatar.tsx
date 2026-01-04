@@ -42,11 +42,19 @@ export default function UploadAvatar({ userId, onUploaded, buttonText = "Change 
         const publicUrl = data.publicUrl;
 
         onUploaded?.(publicUrl);
-      } catch (e: any) {
-        setError(e?.message ?? "Upload failed");
-      } finally {
-        setBusy(false);
-      }
+     } catch (e: unknown) {
+  const message =
+    e instanceof Error
+      ? e.message
+      : typeof e === "string"
+      ? e
+      : "Upload failed";
+
+  setError(message);
+} finally {
+  setBusy(false);
+}
+
     };
     input.click();
   }
