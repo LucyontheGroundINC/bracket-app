@@ -20,9 +20,10 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] flex items-center justify-center px-4">
       <main className="max-w-3xl w-full mx-auto flex flex-col items-center text-center gap-6">
         {/* Logo */}
-        <div className="relative w-52 h-52 sm:w-64 sm:h-64 mb-2">
+        <div className="relative w-72 h-72 sm:w-96 sm:h-96 mb-4">
+
           <Image
-            src="/LOTG_Logo_Red_Navy.png" // stacked logo
+            src="/MCE.svg" // stacked logo
             alt="Chaos Bracket Logo"
             fill
             className="object-contain drop-shadow-lg"
