@@ -33,11 +33,11 @@ export default function HomePage() {
         {/* Title / Tagline */}
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold text-[#CA4C4C] tracking-tight mb-2">
-            Chaos Bracket 2025
+            Main Character Music Madness 2025
           </h1>
           <p className="text-sm sm:text-base text-[#0A2041]/80 max-w-xl mx-auto">
             Fill out your bracket, lock in your takes, and see who survives
-            the drama. Housewives energy, bracket energy, pure chaos.
+            the drama.
           </p>
         </div>
 
