@@ -104,34 +104,41 @@ export async function GET() {
 
     if (totalsByUser.size === 0) return NextResponse.json([]);
 
-    // 4) Look up display names from your "users" table
-    const userIds = Array.from(totalsByUser.keys());
-    const userInfo = new Map<string, { displayName: string | null }>();
+   // 4) Look up display names from your "profiles" table
+const userIds = Array.from(totalsByUser.keys());
+const userInfo = new Map<string, { displayName: string | null }>();
 
-    if (userIds.length) {
-      const { data: dbUsers, error: dbUsersError } = await supabaseAdmin
-        .from("users")
-        .select("id, display_name, displayName, name, username, full_name")
-        .in("id", userIds);
+if (userIds.length) {
+  const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
+    .from("profiles")
+    .select("user_id, display_name, username, full_name, name")
+    .in("user_id", userIds);
 
-      if (dbUsersError) {
-        console.warn("[leaderboard] Could not load users table:", dbUsersError);
-      } else {
-        const rows = (dbUsers ?? []) as UserRow[];
-        for (const raw of rows) {
-          const id = String(raw.id);
-          const displayName =
-            raw.display_name ??
-            raw.displayName ??
-            raw.name ??
-            raw.username ??
-            raw.full_name ??
-            null;
+  if (dbProfilesError) {
+    console.warn("[leaderboard] Could not load profiles table:", dbProfilesError);
+  } else {
+    const rows = (dbProfiles ?? []) as Array<{
+      user_id: string;
+      display_name: string | null;
+      username?: string | null;
+      full_name?: string | null;
+      name?: string | null;
+    }>;
 
-          userInfo.set(id, { displayName });
-        }
-      }
+    for (const raw of rows) {
+      const id = String(raw.user_id);
+      const displayName =
+        raw.display_name ??
+        raw.full_name ??
+        raw.name ??
+        raw.username ??
+        null;
+
+      userInfo.set(id, { displayName });
     }
+  }
+}
+
 
     // 5) Build leaderboard response (NO EMAILS)
     const leaderboard = Array.from(totalsByUser.entries())
