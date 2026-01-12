@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 function roundPoints(round: number) {
-  return Math.pow(2, Math.max(0, round - 1)); // 1,2,4,8,16,32
+  // 1, 2, 4, 8, 16, 32 ...
+  return Math.pow(2, Math.max(0, round - 1));
 }
 
 type MatchRow = {
@@ -18,28 +19,23 @@ type PickRow = {
   chosen_winner: "team1" | "team2" | null;
 };
 
-type UserRow = {
-  id: string | number;
-  display_name?: string | null;
-  displayName?: string | null;
-  name?: string | null;
-  username?: string | null;
-  full_name?: string | null;
-};
-
-// GET /api/scores/leaderboard
-export async function GET() {
+// GET /api/scores/leaderboard?tournamentId=...
+export async function GET(req: Request) {
   try {
     if (!supabaseAdmin) {
       console.error("[leaderboard] supabaseAdmin is not configured");
       return NextResponse.json(
         {
           error:
-            "Supabase admin client not configured. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+            "Supabase admin client not configured. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
         },
         { status: 500 }
       );
     }
+
+    // If you later scope by tournamentId, parse it here.
+    // const { searchParams } = new URL(req.url);
+    // const tournamentId = searchParams.get("tournamentId");
 
     // 1) Load matches that have winners set
     const { data: matches, error: matchesError } = await supabaseAdmin
@@ -56,20 +52,16 @@ export async function GET() {
     if (matchRows.length === 0) return NextResponse.json([]);
 
     const matchMeta = new Map<string, { round: number; winner: "team1" | "team2" }>();
-
     for (const m of matchRows) {
       if (!m.winner) continue;
-      matchMeta.set(String(m.id), {
-        round: m.round ?? 1,
-        winner: m.winner,
-      });
+      matchMeta.set(String(m.id), { round: m.round ?? 1, winner: m.winner });
     }
 
     if (matchMeta.size === 0) return NextResponse.json([]);
 
     const matchIds = Array.from(matchMeta.keys());
 
-    // 2) All picks for those matches
+    // 2) Load picks for those matches
     const { data: picks, error: picksError } = await supabaseAdmin
       .from("picks")
       .select("user_id, match_id, chosen_winner")
@@ -104,39 +96,44 @@ export async function GET() {
 
     if (totalsByUser.size === 0) return NextResponse.json([]);
 
-   // 4) Look up display names from your "profiles" table
-const userIds = Array.from(totalsByUser.keys());
-const userInfo = new Map<string, { displayName: string | null }>();
-console.log("[leaderboard] userIds sample:", userIds.slice(0, 5));
-console.log("[leaderboard] userIds count:", userIds.length);
+    // 4) Look up display names + avatars from profiles table
+    const userIds = Array.from(totalsByUser.keys());
+    const userInfo = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
 
-if (userIds.length) {
-  const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
-    .from("profiles")
-    .select("user_id, display_name")
-    .in("user_id", userIds);
+    const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id, display_name, avatar_url")
+      .in("user_id", userIds);
 
-  console.log("[leaderboard] profiles rows:", (dbProfiles ?? []).length);
-  console.log("[leaderboard] profiles error:", dbProfilesError);
-
-  if (dbProfilesError) {
-    console.warn("[leaderboard] Could not load profiles:", dbProfilesError);
-  } else {
-    for (const raw of dbProfiles ?? []) {
-      const id = String(raw.user_id);
-      const displayName = raw.display_name ?? null;
-      userInfo.set(id, { displayName });
+    if (dbProfilesError) {
+      console.warn("[leaderboard] Could not load profiles:", dbProfilesError);
+    } else {
+      for (const raw of (dbProfiles ?? []) as Array<{
+        user_id: string | number;
+        display_name: string | null;
+        avatar_url: string | null;
+      }>) {
+        const id = String(raw.user_id);
+        userInfo.set(id, {
+          displayName: raw.display_name ?? null,
+          avatarUrl: raw.avatar_url ?? null,
+        });
+      }
     }
-  }
-}
 
-
+    // NOTE: profiles table uses user_id + display_name (NOT username)
 
     // 5) Build leaderboard response (NO EMAILS)
     const leaderboard = Array.from(totalsByUser.entries())
       .map(([userId, { totalScore, correctCount }]) => {
-        const info = userInfo.get(userId) ?? { displayName: null };
-        return { userId, displayName: info.displayName, totalScore, correctCount };
+        const info = userInfo.get(userId) ?? { displayName: null, avatarUrl: null };
+        return {
+          userId,
+          displayName: info.displayName,
+          avatarUrl: info.avatarUrl,
+          totalScore,
+          correctCount,
+        };
       })
       .sort((a, b) => {
         if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
@@ -147,10 +144,8 @@ if (userIds.length) {
 
     return NextResponse.json(leaderboard);
   } catch (e: unknown) {
-    const message =
-      e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
-
+    const message = e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
+    console.error("[leaderboard] Unhandled error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

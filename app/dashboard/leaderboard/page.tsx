@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import Avatar from "@/components/Avatar";
 
 type LeaderboardRow = {
   userId: string;
   displayName: string | null;
   email: string | null;
+  avatarUrl: string | null;
   totalScore: number;
   correctCount: number;
 };
@@ -20,13 +22,18 @@ type TournamentSummary = {
 };
 
 function normalizeLeaderboardRow(input: unknown): LeaderboardRow {
-  const r = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  const r =
+    typeof input === "object" && input !== null
+      ? (input as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
 
   const userIdRaw = r.userId ?? r.user_id ?? "";
-  const userId = typeof userIdRaw === "string" || typeof userIdRaw === "number" ? String(userIdRaw) : "";
+  const userId =
+    typeof userIdRaw === "string" || typeof userIdRaw === "number"
+      ? String(userIdRaw)
+      : "";
 
-  const displayNameRaw =
-    r.userDisplayName ?? r.displayName ?? r.name ?? r.username ?? null;
+  const displayNameRaw = r.userDisplayName ?? r.displayName ?? r.name ?? r.username ?? null;
   const displayName =
     typeof displayNameRaw === "string" && displayNameRaw.trim()
       ? displayNameRaw
@@ -35,13 +42,18 @@ function normalizeLeaderboardRow(input: unknown): LeaderboardRow {
   const emailRaw = r.userEmail ?? r.email ?? r.user_email ?? null;
   const email = typeof emailRaw === "string" && emailRaw.trim() ? emailRaw : null;
 
+  const avatarUrlRaw = r.avatarUrl ?? r.avatar_url ?? null;
+  const avatarUrl =
+    typeof avatarUrlRaw === "string" && avatarUrlRaw.trim() ? avatarUrlRaw : null;
+
   const totalScoreRaw = r.totalPoints ?? r.totalScore ?? r.score ?? r.points ?? 0;
-  const totalScore = typeof totalScoreRaw === "number" ? totalScoreRaw : Number(totalScoreRaw) || 0;
+  const totalScore =
+    typeof totalScoreRaw === "number" ? totalScoreRaw : Number(totalScoreRaw) || 0;
 
   const correctRaw = r.correctCount ?? r.correct ?? r.correctPicks ?? 0;
   const correctCount = typeof correctRaw === "number" ? correctRaw : Number(correctRaw) || 0;
 
-  return { userId, displayName, email, totalScore, correctCount };
+  return { userId, displayName, email, avatarUrl, totalScore, correctCount };
 }
 
 export default function LeaderboardPage() {
@@ -80,19 +92,14 @@ export default function LeaderboardPage() {
         }
 
         const list = (await res.json()) as unknown;
-
         if (!Array.isArray(list) || list.length === 0) return;
 
-        // Prefer: isActive; fallback: last item
         const typed = list as TournamentSummary[];
         const active = typed.find((t) => !!t.isActive) ?? typed[typed.length - 1];
-
         if (!active || typeof active.id !== "number") return;
 
         setActiveTournamentId(active.id);
-        setActiveTournamentName(
-          active.year ? `${active.name} (${active.year})` : active.name
-        );
+        setActiveTournamentName(active.year ? `${active.name} (${active.year})` : active.name);
       } catch (err: unknown) {
         const msg =
           err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown error";
@@ -112,15 +119,17 @@ export default function LeaderboardPage() {
       setError(null);
 
       try {
-        const res = await fetch(`/api/scores/leaderboard?tournamentId=${activeTournamentId}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/scores/leaderboard?tournamentId=${activeTournamentId}`,
+          { cache: "no-store" }
+        );
 
         if (!res.ok) {
           const json = (await res.json().catch(() => null)) as unknown;
           console.error("Leaderboard fetch failed:", { status: res.status, json });
 
-          const j = (typeof json === "object" && json !== null ? (json as Record<string, unknown>) : null);
+          const j =
+            typeof json === "object" && json !== null ? (json as Record<string, unknown>) : null;
           const msg = j && typeof j.error === "string" ? j.error : "Failed to load leaderboard";
           throw new Error(msg);
         }
@@ -170,25 +179,20 @@ export default function LeaderboardPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#CA4C4C]">
-              Leaderboard
-            </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#CA4C4C]">Leaderboard</h1>
             <p className="text-sm text-[#0A2041]/70 mt-1">
               See how your bracket stacks up against everyone else.
             </p>
             {activeTournamentName && (
               <p className="text-xs text-[#0A2041]/60 mt-1">
-                Tournament:{" "}
-                <span className="font-semibold">{activeTournamentName}</span>
+                Tournament: <span className="font-semibold">{activeTournamentName}</span>
               </p>
             )}
           </div>
         </div>
 
         {/* Status */}
-        {loading && (
-          <div className="mb-4 text-sm text-[#0A2041]/70">Loading scores…</div>
-        )}
+        {loading && <div className="mb-4 text-sm text-[#0A2041]/70">Loading scores…</div>}
         {error && (
           <div className="mb-4 text-sm text-[#CA4C4C] bg-white/80 border border-[#F5B8B0] rounded-xl px-4 py-3">
             {error}
@@ -213,8 +217,8 @@ export default function LeaderboardPage() {
                 exit={{ opacity: 0 }}
                 className="px-4 py-6 text-sm text-[#0A2041]/70 text-center"
               >
-                No scores yet. Once games have winners and scores are
-                recalculated, they’ll appear here.
+                No scores yet. Once games have winners and scores are recalculated, they’ll appear
+                here.
               </motion.div>
             ) : (
               rows.map((row, index) => {
@@ -222,10 +226,8 @@ export default function LeaderboardPage() {
                 const isMe = !!currentUserId && row.userId === currentUserId;
 
                 const previousIndex = prevRanks.get(row.userId);
-                const movedUp =
-                  previousIndex !== undefined && previousIndex > index;
-                const movedDown =
-                  previousIndex !== undefined && previousIndex < index;
+                const movedUp = previousIndex !== undefined && previousIndex > index;
+                const movedDown = previousIndex !== undefined && previousIndex < index;
 
                 return (
                   <motion.div
@@ -234,11 +236,7 @@ export default function LeaderboardPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 260,
-                      damping: 24,
-                    }}
+                    transition={{ type: "spring", stiffness: 260, damping: 24 }}
                     className={[
                       "px-4 py-3 flex items-center text-sm border-t border-[#F5B8B0]/40",
                       isMe ? "bg-[#FEE689]/40" : "bg-white/0",
@@ -246,42 +244,31 @@ export default function LeaderboardPage() {
                   >
                     {/* Rank + arrow */}
                     <div className="w-12 flex items-center gap-1">
-                      <span className="font-semibold text-[#0A2041]">
-                        {rank}
-                      </span>
-                      {movedUp && (
-                        <span className="text-[10px] text-emerald-600">▲</span>
-                      )}
-                      {movedDown && (
-                        <span className="text-[10px] text-rose-600">▼</span>
-                      )}
+                      <span className="font-semibold text-[#0A2041]">{rank}</span>
+                      {movedUp && <span className="text-[10px] text-emerald-600">▲</span>}
+                      {movedDown && <span className="text-[10px] text-rose-600">▼</span>}
                     </div>
 
-                    {/* Player */}
-                    <div className="flex-1 flex flex-col">
-                      <span
-                        className={["truncate", isMe ? "font-semibold" : ""].join(
-                          " "
-                        )}
-                      >
-                        {row.displayName || row.email || "Unknown player"}
-                        {isMe && (
-                          <span className="ml-2 text-[11px] text-[#0A2041]/70">
-                            (you)
-                          </span>
-                        )}
-                      </span>
-                      {row.displayName && row.email && (
-                        <span className="text-[11px] text-[#0A2041]/50 truncate">
-                          {row.email}
-                        </span>
-                      )}
+                    {/* Player (Avatar + Name) */}
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <Avatar name={row.displayName ?? row.email ?? "Player"} src={row.avatarUrl} />
+
+                      <div className="min-w-0">
+                        <div className={["truncate", isMe ? "font-semibold" : ""].join(" ")}>
+                          {row.displayName || row.email || "Unknown player"}
+                          {isMe && (
+                            <span className="ml-2 text-[11px] text-[#0A2041]/70">(you)</span>
+                          )}
+                        </div>
+
+                        {row.displayName && row.email ? (
+                          <div className="text-[11px] text-[#0A2041]/50 truncate">{row.email}</div>
+                        ) : null}
+                      </div>
                     </div>
 
                     {/* Correct picks */}
-                    <div className="w-20 text-right text-[#0A2041]/80">
-                      {row.correctCount}
-                    </div>
+                    <div className="w-20 text-right text-[#0A2041]/80">{row.correctCount}</div>
 
                     {/* Points */}
                     <div className="w-24 text-right font-semibold text-[#0A2041]">
@@ -297,3 +284,4 @@ export default function LeaderboardPage() {
     </div>
   );
 }
+
