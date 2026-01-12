@@ -136,11 +136,22 @@ export async function GET(req: Request) {
         };
       })
       .sort((a, b) => {
-        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-        const nameA = (a.displayName ?? "").toLowerCase();
-        const nameB = (b.displayName ?? "").toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+  // 1) Total points (primary)
+  if (b.totalScore !== a.totalScore) {
+    return b.totalScore - a.totalScore;
+  }
+
+  // 2) Total correct games (tie-breaker)
+  if (b.correctCount !== a.correctCount) {
+    return b.correctCount - a.correctCount;
+  }
+
+  // 3) Alphabetical fallback (stable order)
+  const nameA = (a.displayName ?? "").toLowerCase();
+  const nameB = (b.displayName ?? "").toLowerCase();
+  return nameA.localeCompare(nameB);
+});
+
 
     return NextResponse.json(leaderboard);
   } catch (e: unknown) {
