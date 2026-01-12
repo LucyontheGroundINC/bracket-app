@@ -107,12 +107,16 @@ export async function GET() {
    // 4) Look up display names from your "profiles" table
 const userIds = Array.from(totalsByUser.keys());
 const userInfo = new Map<string, { displayName: string | null }>();
+console.log("[leaderboard] userIds sample:", userIds.slice(0, 5));
+console.log("[leaderboard] userIds count:", userIds.length);
 
 if (userIds.length) {
   const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
     .from("profiles")
     .select("user_id, display_name, username, full_name, name")
     .in("user_id", userIds);
+console.log("[leaderboard] profiles rows:", (dbProfiles ?? []).length);
+console.log("[leaderboard] profiles error:", dbProfilesError);
 
   if (dbProfilesError) {
     console.warn("[leaderboard] Could not load profiles table:", dbProfilesError);
