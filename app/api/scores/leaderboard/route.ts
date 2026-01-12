@@ -113,35 +113,23 @@ console.log("[leaderboard] userIds count:", userIds.length);
 if (userIds.length) {
   const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
     .from("profiles")
-    .select("user_id, display_name, username, full_name, name")
+    .select("user_id, display_name")
     .in("user_id", userIds);
-console.log("[leaderboard] profiles rows:", (dbProfiles ?? []).length);
-console.log("[leaderboard] profiles error:", dbProfilesError);
+
+  console.log("[leaderboard] profiles rows:", (dbProfiles ?? []).length);
+  console.log("[leaderboard] profiles error:", dbProfilesError);
 
   if (dbProfilesError) {
-    console.warn("[leaderboard] Could not load profiles table:", dbProfilesError);
+    console.warn("[leaderboard] Could not load profiles:", dbProfilesError);
   } else {
-    const rows = (dbProfiles ?? []) as Array<{
-      user_id: string;
-      display_name: string | null;
-      username?: string | null;
-      full_name?: string | null;
-      name?: string | null;
-    }>;
-
-    for (const raw of rows) {
+    for (const raw of dbProfiles ?? []) {
       const id = String(raw.user_id);
-      const displayName =
-        raw.display_name ??
-        raw.full_name ??
-        raw.name ??
-        raw.username ??
-        null;
-
+      const displayName = raw.display_name ?? null;
       userInfo.set(id, { displayName });
     }
   }
 }
+
 
 
     // 5) Build leaderboard response (NO EMAILS)
