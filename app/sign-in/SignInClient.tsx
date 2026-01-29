@@ -1,14 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { syncUserToDB } from "@/lib/api";
 
 type Mode = "signin" | "signup";
 
+function safeReturnTo(value: string | null) {
+  // prevent open redirects
+  if (!value) return "/dashboard";
+  if (!value.startsWith("/")) return "/dashboard";
+  if (value.startsWith("//")) return "/dashboard";
+  return value;
+}
+
 export default function SignInClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Memoize so it doesn't change unexpectedly on re-renders
+  const returnTo = useMemo(
+    () => safeReturnTo(searchParams.get("returnTo")),
+    [searchParams]
+  );
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -18,45 +33,57 @@ export default function SignInClient() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // If already signed in, go to dashboard
+  // If already signed in, go to returnTo (NOT always dashboard)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) router.replace("/dashboard");
-    });
-  }, [router]);
+    const check = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) return;
+      if (data.user) router.replace(returnTo);
+    };
+    check();
+  }, [router, returnTo]);
 
-  // Listen for auth changes; when signed in, sync user and redirect
+  // Listen for auth changes; when signed in, sync user (non-blocking) + redirect to returnTo
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
-          const u = session.user;
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        const u = session.user;
 
-          const nameFromMeta =
-            (u.user_metadata?.display_name as string | undefined) ??
-            (u.user_metadata?.full_name as string | undefined) ??
-            (u.user_metadata?.name as string | undefined) ??
-            null;
+        const nameFromMeta =
+          (u.user_metadata?.display_name as string | undefined) ??
+          (u.user_metadata?.full_name as string | undefined) ??
+          (u.user_metadata?.name as string | undefined) ??
+          null;
 
-          await syncUserToDB({
-            id: u.id,
-            email: u.email!,
-            displayName: nameFromMeta,
-          });
+        // Fire-and-forget sync so it never blocks navigation
+        Promise.resolve()
+          .then(() =>
+            syncUserToDB({
+              id: u.id,
+              email: u.email!,
+              displayName: nameFromMeta,
+            })
+          )
+          .catch((err) => console.warn("syncUserToDB failed:", err));
 
-          router.replace("/dashboard");
-        }
+        router.replace(returnTo);
       }
-    );
+    });
 
     return () => sub.subscription.unsubscribe();
-  }, [router]);
+  }, [router, returnTo]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
 
-    if (!email || !password) return;
+    const em = email.trim();
+    const pw = password;
+
+    if (!em || !pw) {
+      setMessage("Please enter your email and password.");
+      return;
+    }
 
     if (mode === "signup" && !displayName.trim()) {
       setMessage("Please enter a display name.");
@@ -67,11 +94,13 @@ export default function SignInClient() {
       setLoading(true);
 
       if (mode === "signup") {
+        const dn = displayName.trim();
+
         const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: em,
+          password: pw,
           options: {
-            data: { display_name: displayName.trim() },
+            data: { display_name: dn },
           },
         });
 
@@ -80,19 +109,36 @@ export default function SignInClient() {
           return;
         }
 
+        // If email confirmation is enabled, session may be null
         if (!data.session) {
-          setMessage("Account created! You can sign in now.");
+          setMessage("Account created! Please check your email, then sign in.");
+          // Don't redirect; they may need to verify email first.
+          return;
         }
+
+        // If session exists, redirect immediately (and let auth listener handle sync)
+        router.replace(returnTo);
+        return;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: em,
+          password: pw,
         });
 
         if (error) {
           setMessage(error.message);
           return;
         }
+
+        // Redirect immediately on success (do not rely on auth event timing)
+        if (data.session?.user) {
+          router.replace(returnTo);
+          return;
+        }
+
+        // Fallback (should be rare)
+        router.replace(returnTo);
+        return;
       }
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : "Something went wrong.");
@@ -101,35 +147,35 @@ export default function SignInClient() {
     }
   }
 
-async function handleForgotPassword() {
-  setMessage(null);
+  async function handleForgotPassword() {
+    setMessage(null);
 
-  if (!email) {
-    setMessage("Enter your email first, then click Forgot password.");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    if (error) {
-      setMessage(error.message);
+    const em = email.trim();
+    if (!em) {
+      setMessage("Enter your email first, then click Forgot password.");
       return;
     }
 
-    setMessage("Password reset email sent. Check your inbox.");
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Something went wrong.";
-    setMessage(msg);
-  } finally {
-    setLoading(false);
-  }
-}
+    try {
+      setLoading(true);
 
+      const { error } = await supabase.auth.resetPasswordForEmail(em, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage("Password reset email sent. Check your inbox.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      setMessage(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <main className="mx-auto max-w-md p-6">
@@ -201,11 +247,7 @@ async function handleForgotPassword() {
           disabled={loading}
           className="rounded bg-black text-white px-4 py-2 disabled:opacity-60"
         >
-          {loading
-            ? "Working..."
-            : mode === "signin"
-            ? "Sign in"
-            : "Create account"}
+          {loading ? "Working..." : mode === "signin" ? "Sign in" : "Create account"}
         </button>
 
         {mode === "signin" && (

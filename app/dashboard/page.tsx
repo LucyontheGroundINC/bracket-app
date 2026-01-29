@@ -47,7 +47,8 @@ export default function DashboardPage() {
         const u = auth.user;
 
         const displayName =
-          (u.user_metadata?.displayName as string | undefined) ||
+          (u.user_metadata?.display_name as string | undefined) ||
+            (u.user_metadata?.displayName as string | undefined) ||
           (u.user_metadata?.full_name as string | undefined) ||
           (u.user_metadata?.name as string | undefined) ||
           (u.email ? u.email.split('@')[0] : 'Player');
@@ -77,9 +78,10 @@ export default function DashboardPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-[#CA4C4C]">
             Dashboard
           </h1>
-          <p className="text-sm text-[#0A2041]/70 mt-1">
-            One stop for your bracket, profile, and links to everything else.
-          </p>
+         <p className="text-sm text-[#0A2041]/70 mt-1">
+  Your Lucy On The Ground game center — jump into the latest game and track your stats.
+</p>
+
 
           {!loadingUser && user && (
             <p className="text-xs text-[#0A2041]/60 mt-1">
@@ -95,15 +97,67 @@ export default function DashboardPage() {
         <section className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-start">
           {/* LEFT: main dashboard content */}
           <div className="space-y-4">
+            {/* Hollywood’s Biggest Night */}
+<div className="bg-[#0A2041] text-[#F8F5EE] border border-white/10 rounded-2xl p-5 shadow-sm overflow-hidden relative">
+  {/* subtle accent */}
+  <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-[#FEE689]/25 blur-2xl" />
+  <div className="absolute -bottom-14 -left-10 h-56 w-56 rounded-full bg-[#CA4C4C]/20 blur-3xl" />
+
+  <div className="relative">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-black tracking-wide uppercase text-[#FEE689]">
+          Hollywood’s Biggest Night
+        </h2>
+        <p className="mt-2 text-sm font-extrabold leading-tight">
+          Make your picks. Climb the leaderboard. Brag forever.
+        </p>
+        <p className="mt-2 text-xs text-white/75 max-w-prose">
+          Tap a category, choose one nominee, and we save automatically. When winners are set,
+          your score updates.
+        </p>
+      </div>
+
+      <span className="shrink-0 text-[10px] font-black px-2 py-1 rounded-full bg-[#FEE689] text-[#0A2041]">
+        NEW
+      </span>
+    </div>
+
+    <div className="mt-4 flex flex-wrap gap-2">
+      <Link
+        href="/biggest-night/ballot"
+        className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-xs font-black bg-[#FEE689] text-[#0A2041] hover:opacity-90 transition"
+      >
+        Make Picks →
+      </Link>
+
+      <Link
+        href="/biggest-night/leaderboard"
+        className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-xs font-black bg-white/10 text-[#F8F5EE] border border-white/15 hover:bg-white/15 transition"
+      >
+        View Leaderboard →
+      </Link>
+    </div>
+
+    <p className="mt-3 text-[11px] text-white/55">
+      Pro tip: pick your longshots — they’ll be worth more once we load the weights.
+    </p>
+  </div>
+</div>
+
             {/* My Bracket summary */}
             <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-[#CA4C4C] mb-2">
-                My Bracket
-              </h2>
-              <p className="text-xs text-[#0A2041]/75 mb-3">
-                Jump into your bracket to make picks, see matchups, and follow
-                the chaos.
-              </p>
+             <div className="flex items-center justify-between gap-3 mb-2">
+  <h2 className="text-sm font-semibold text-[#CA4C4C]">Bracket Madness</h2>
+  <span className="text-[10px] font-black px-2 py-1 rounded-full bg-[#F9DCD8] text-[#0A2041]/75 border border-[#0A2041]/10">
+    COMING SOON
+  </span>
+</div>
+
+             <p className="text-xs text-[#0A2041]/75 mb-3">
+  Bracket Madness is coming soon. We’ll open picks closer to launch — but you can still peek around.
+</p>
+
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/dashboard/brackets"
@@ -167,7 +221,8 @@ export default function DashboardPage() {
                   lock time, manage teams, and run maintenance tools.
                 </p>
                 <Link
-                  href="/admin/settings"
+                  href="/admin"
+
                   className="inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a] transition"
                 >
                   Go to Admin Control Center
