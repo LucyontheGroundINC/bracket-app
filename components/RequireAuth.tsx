@@ -8,7 +8,8 @@ function isPublicPath(pathname: string) {
   return (
     pathname === "/sign-in" ||
     pathname === "/signup" ||
-    pathname === "/reset-password"
+    pathname === "/reset-password" ||
+    pathname === "/coming-soon"
   );
 }
 
