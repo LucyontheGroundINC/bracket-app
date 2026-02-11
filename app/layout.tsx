@@ -1,7 +1,14 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Playfair_Display } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import RequireAuth from "@/components/RequireAuth";
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
 
 export const metadata: Metadata = {
   title: "Lucy On The Ground Game Center",
@@ -57,7 +64,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[#F9DCD8] text-[#0A2041]">
+      <body className={`${playfair.variable} bg-[#F9DCD8] text-[#0A2041]`} style={{ fontFamily: '"Playfair Display", serif' }}>
         <Navbar />
         <RequireAuth>
           <main>{children}</main>
