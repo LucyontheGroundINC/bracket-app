@@ -12,6 +12,7 @@ type SeasonRow = {
   year: number | null;
   is_active: boolean;
   lock_at: string | null;
+  tie_breaker_seconds: number | null;
 };
 
 type CategoryRow = {
@@ -44,6 +45,7 @@ export default function BiggestNightAdminPage() {
 
   // Lock time editor
   const [lockAtInput, setLockAtInput] = useState<string>("");
+  const [tieBreakerSecondsInput, setTieBreakerSecondsInput] = useState<string>("");
 
   const isAdmin = email === ADMIN_EMAIL;
 
@@ -71,7 +73,7 @@ export default function BiggestNightAdminPage() {
         // Active season
         const { data: s, error: sErr } = await supabase
           .from("biggest_night_seasons")
-          .select("id, name, year, is_active, lock_at")
+          .select("id, name, year, is_active, lock_at, tie_breaker_seconds")
           .eq("is_active", true)
           .maybeSingle();
 
@@ -92,6 +94,12 @@ export default function BiggestNightAdminPage() {
           setLockAtInput(local);
         } else {
           setLockAtInput("");
+        }
+
+        if (seasonRow.tie_breaker_seconds !== null && seasonRow.tie_breaker_seconds !== undefined) {
+          setTieBreakerSecondsInput(String(seasonRow.tie_breaker_seconds));
+        } else {
+          setTieBreakerSecondsInput("");
         }
 
         // Categories
@@ -253,6 +261,35 @@ finally {
     }
   }
 
+  async function saveTieBreakerSeconds() {
+    if (!season) return;
+
+    setError(null);
+    setSaving("tie-breaker");
+
+    try {
+      const parsed = tieBreakerSecondsInput.trim() === ""
+        ? null
+        : Math.max(0, Math.floor(Number(tieBreakerSecondsInput)));
+
+      const { error: tieErr } = await supabase
+        .from("biggest_night_seasons")
+        .update({ tie_breaker_seconds: parsed })
+        .eq("id", season.id);
+
+      if (tieErr) throw new Error(tieErr.message);
+
+      showToast("Tie-breaker saved ✓");
+      setSeason((prev) => (prev ? { ...prev, tie_breaker_seconds: parsed } : prev));
+      if (parsed === null) setTieBreakerSecondsInput("");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg || "Failed to save tie-breaker seconds.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   if (!email) {
     // auth still loading
     return (
@@ -366,6 +403,47 @@ finally {
             <button
               type="button"
               onClick={() => setLockAtInput("")}
+              className="rounded-xl bg-white border border-[#0A2041]/10 px-4 py-3 text-sm font-black hover:bg-white/90"
+            >
+              Clear
+            </button>
+          </div>
+        </section>
+
+        {/* Tie-breaker */}
+        <section className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
+          <h2 className="text-sm font-black text-[#CA4C4C] mb-2">Tie-breaker answer</h2>
+          <p className="text-xs text-[#0A2041]/70 mb-3">
+            Set the official seconds for the Best Actress acceptance speech.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-[#0A2041]/70 mb-1">
+                Actual seconds (closest without going over wins ties)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={tieBreakerSecondsInput}
+                onChange={(e) => setTieBreakerSecondsInput(e.target.value)}
+                className="w-full rounded-xl border border-[#0A2041]/10 px-3 py-2 bg-white"
+                placeholder="e.g. 74"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={saveTieBreakerSeconds}
+              disabled={saving === "tie-breaker"}
+              className="rounded-xl bg-[#0A2041] text-[#F8F5EE] px-4 py-3 text-sm font-black hover:opacity-95 disabled:opacity-60"
+            >
+              {saving === "tie-breaker" ? "Saving…" : "Save tie-breaker"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTieBreakerSecondsInput("")}
               className="rounded-xl bg-white border border-[#0A2041]/10 px-4 py-3 text-sm font-black hover:bg-white/90"
             >
               Clear

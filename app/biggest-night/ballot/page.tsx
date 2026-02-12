@@ -204,25 +204,34 @@ export default function BiggestNightBallotPage() {
 
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041]">
-      {/* Top bar */}
-      <header className="sticky top-0 z-50 bg-[#0A2041] text-[#F8F5EE] border-b border-white/10">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-lg sm:text-xl font-black tracking-tight">Hollywood’s Biggest Night</div>
-            <div className="text-xs text-white/75 truncate">{headerSubtitle}</div>
+      {/* Mobile-only header with indicators */}
+      <header className="sticky top-0 z-40 bg-[#0A2041] text-[#F8F5EE] border-b border-white/10 md:hidden">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-end gap-3">
+          <div className="flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-2">
+            <span className="text-xs font-bold text-white/85">Progress</span>
+            <span className="text-xs font-black text-[#FEE689]">
+              {pickedCount}/{totalCategories || "—"}
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-2">
-              <span className="text-xs font-bold text-white/85">Progress</span>
-              <span className="text-xs font-black text-[#FEE689]">
-                {pickedCount}/{totalCategories || "—"}
-              </span>
-            </div>
+          <div className="rounded-full px-3 py-2 text-xs font-black border bg-white/10 border-white/15 text-white/85">
+            {isLocked ? "Locked" : savingCategoryId ? "Saving…" : "Auto-save"}
+          </div>
+        </div>
+      </header>
 
-            <div className="rounded-full px-3 py-2 text-xs font-black border bg-white/10 border-white/15 text-white/85">
-              {isLocked ? "Locked" : savingCategoryId ? "Saving…" : "Auto-save"}
-            </div>
+      {/* Desktop-only header with indicators */}
+      <header className="hidden md:block sticky top-0 z-40 bg-[#0A2041] text-[#F8F5EE] border-t border-white/10">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-end gap-3">
+          <div className="flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-2">
+            <span className="text-xs font-bold text-white/85">Progress</span>
+            <span className="text-xs font-black text-[#FEE689]">
+              {pickedCount}/{totalCategories || "—"}
+            </span>
+          </div>
+
+          <div className="rounded-full px-3 py-2 text-xs font-black border bg-white/10 border-white/15 text-white/85">
+            {isLocked ? "Locked" : savingCategoryId ? "Saving…" : "Auto-save"}
           </div>
         </div>
       </header>

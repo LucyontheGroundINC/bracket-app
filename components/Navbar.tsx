@@ -85,6 +85,7 @@ export default function Navbar() {
       return [
         { href: "/biggest-night/ballot", label: "Ballot" },
         { href: "/biggest-night/leaderboard", label: "Leaderboard" },
+        { href: "/biggest-night/how-to-play", label: "How to Play" },
       ];
     }
     if (context === "bracket") {

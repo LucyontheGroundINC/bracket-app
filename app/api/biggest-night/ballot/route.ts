@@ -23,6 +23,7 @@ type NomineeRow = {
   name: string;
   subtitle: string | null;
   image_url: string | null;
+  weight_points: number | null;
   sort_order: number;
 };
 
@@ -89,10 +90,9 @@ export async function GET(req: Request) {
     const categoryIds = categories.map((c) => c.id);
 
     // 3) Load nominees for those categories
-    // IMPORTANT: do NOT return weight_points or is_winner here (keep it clean for users)
     const { data: nomineesData, error: nomineesError } = await supabaseAdmin
       .from("biggest_night_nominees")
-      .select("id, category_id, name, subtitle, image_url, sort_order")
+      .select("id, category_id, name, subtitle, image_url, weight_points, sort_order")
       .in("category_id", categoryIds)
       .order("sort_order", { ascending: true });
 
@@ -126,7 +126,13 @@ export async function GET(req: Request) {
         id: c.id,
         name: c.name,
         sortOrder: c.sort_order,
-        nominees: nomineesByCategory.get(String(c.id)) ?? [],
+        nominees:
+          (nomineesByCategory.get(String(c.id)) ?? []).sort((a, b) => {
+            const aPoints = a.weight_points ?? 0;
+            const bPoints = b.weight_points ?? 0;
+            if (aPoints !== bPoints) return aPoints - bPoints;
+            return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+          }),
       })),
     };
 
