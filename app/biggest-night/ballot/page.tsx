@@ -344,6 +344,10 @@ export default function BiggestNightBallotPage() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           {cat.nominees.map((n) => {
                             const selectedHere = selected[cat.id] === n.id;
+                            const pointsLabel =
+                              typeof n.weight_points === "number"
+                                ? `${n.weight_points} pt${n.weight_points === 1 ? "" : "s"}`
+                                : null;
 
                             return (
                               <button
@@ -368,15 +372,22 @@ export default function BiggestNightBallotPage() {
                                     ) : null}
                                   </div>
 
-                                  <div
-                                    className={[
-                                      "h-6 w-6 rounded-full border flex items-center justify-center text-xs font-black",
-                                      selectedHere
-                                        ? "border-[#CA4C4C] bg-[#CA4C4C] text-[#F8F5EE]"
-                                        : "border-[#0A2041]/15 bg-white text-[#0A2041]/40",
-                                    ].join(" ")}
-                                  >
-                                    {selectedHere ? "✓" : ""}
+                                  <div className="flex items-center gap-2">
+                                    {pointsLabel ? (
+                                      <span className="text-[11px] font-black px-2 py-1 rounded-full bg-[#0A2041] text-[#F8F5EE]">
+                                        {pointsLabel}
+                                      </span>
+                                    ) : null}
+                                    <div
+                                      className={[
+                                        "h-6 w-6 rounded-full border flex items-center justify-center text-xs font-black",
+                                        selectedHere
+                                          ? "border-[#CA4C4C] bg-[#CA4C4C] text-[#F8F5EE]"
+                                          : "border-[#0A2041]/15 bg-white text-[#0A2041]/40",
+                                      ].join(" ")}
+                                    >
+                                      {selectedHere ? "✓" : ""}
+                                    </div>
                                   </div>
                                 </div>
                               </button>
