@@ -12,6 +12,7 @@ type BallotNominee = {
   name: string;
   subtitle: string | null;
   image_url: string | null;
+  weight_points: number | null;
   sort_order: number;
 };
 
@@ -341,7 +342,7 @@ export default function BiggestNightBallotPage() {
                           Nominees coming soon.
                         </div>
                       ) : (
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="flex flex-wrap gap-3" style={{ columnCount: 2, columnGap: '12px' }}>
                           {cat.nominees.map((n) => {
                             const selectedHere = selected[cat.id] === n.id;
                             const pointsLabel =
@@ -355,6 +356,7 @@ export default function BiggestNightBallotPage() {
                                 type="button"
                                 disabled={isLocked}
                                 onClick={() => chooseNominee(cat.id, n.id)}
+                                style={{ breakInside: 'avoid' }}
                                 className={[
                                   "w-full text-left rounded-2xl border px-4 py-4 transition",
                                   "hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
