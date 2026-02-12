@@ -127,12 +127,22 @@ export async function GET(req: Request) {
         name: c.name,
         sortOrder: c.sort_order,
         nominees:
-          (nomineesByCategory.get(String(c.id)) ?? []).sort((a, b) => {
-            const aPoints = a.weight_points ?? 0;
-            const bPoints = b.weight_points ?? 0;
-            if (aPoints !== bPoints) return aPoints - bPoints;
-            return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-          }),
+          (nomineesByCategory.get(String(c.id)) ?? [])
+            .sort((a, b) => {
+              const aPoints = a.weight_points ?? 0;
+              const bPoints = b.weight_points ?? 0;
+              if (aPoints !== bPoints) return aPoints - bPoints;
+              return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+            })
+            .map((n) => ({
+              id: n.id,
+              category_id: n.category_id,
+              name: n.name,
+              subtitle: n.subtitle,
+              image_url: n.image_url,
+              weight_points: n.weight_points,
+              sort_order: n.sort_order,
+            })),
       })),
     };
 
