@@ -20,7 +20,7 @@ type PickRow = {
 };
 
 // GET /api/scores/leaderboard?tournamentId=...
-export async function GET(req: Request) {
+export async function GET() {
   try {
     if (!supabaseAdmin) {
       console.error("[leaderboard] supabaseAdmin is not configured");

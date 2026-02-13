@@ -121,21 +121,21 @@ export default function BiggestNightLeaderboardPage() {
   }, [rows, currentUserId]);
 
   return (
-    <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] pt-24 pb-10 px-4">
+    <div className="min-h-screen bg-bn-bg text-bn-muted pt-24 pb-10 px-4">
       <main className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black">
+            <h1 className="text-2xl sm:text-3xl font-black text-bn-primary">
               Biggest Night Leaderboard
             </h1>
-            <p className="text-sm text-[#0A2041]/70 mt-1">
+            <p className="text-sm text-bn-muted/70 mt-1">
               Scores update after winners are set. Tie-breaker: points → correct
               picks.
             </p>
 
             {season?.name ? (
-              <p className="text-xs text-[#0A2041]/60 mt-1">
+              <p className="text-xs text-bn-muted/60 mt-1">
                 Season:{" "}
                 <span className="font-semibold">
                   {season.year
@@ -148,7 +148,7 @@ export default function BiggestNightLeaderboardPage() {
 
           <Link
             href="/biggest-night/ballot"
-            className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-black bg-[#0A2041] text-[#F8F5EE] hover:opacity-95"
+            className="inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-black bg-bn-primary text-bn-bg hover:opacity-95"
           >
             Back to Ballot →
           </Link>
@@ -156,26 +156,26 @@ export default function BiggestNightLeaderboardPage() {
 
         {/* Status */}
         {loading ? (
-          <div className="mb-4 text-sm text-[#0A2041]/70">
+          <div className="mb-4 text-sm text-bn-muted/70">
             Loading leaderboard…
           </div>
         ) : null}
 
         {error ? (
-          <div className="mb-4 text-sm text-[#CA4C4C] bg-white/80 border border-[#F5B8B0] rounded-xl px-4 py-3">
+          <div className="mb-4 text-sm text-red-200 bg-red-500/10 border border-red-400/30 rounded-xl px-4 py-3">
             {error}
           </div>
         ) : null}
 
         {note ? (
-          <div className="mb-4 text-sm bg-white/80 border border-[#0A2041]/10 rounded-xl px-4 py-3 text-[#0A2041]/75">
+          <div className="mb-4 text-sm bg-bn-muted/10 border border-bn-muted/20 rounded-xl px-4 py-3 text-bn-muted/70">
             {note}
           </div>
         ) : null}
 
         {/* Table */}
-        <div className="bg-white/95 border border-[#F5B8B0] rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#F5B8B0]/70 flex text-xs font-semibold text-[#0A2041]/70">
+        <div className="bg-bn-muted/10 border border-bn-muted/20 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-bn-muted/20 flex text-xs font-semibold text-bn-muted/70">
             <div className="w-12">Rank</div>
             <div className="flex-1">Player</div>
             <div className="w-24 text-right">Correct</div>
@@ -183,7 +183,7 @@ export default function BiggestNightLeaderboardPage() {
           </div>
 
           {!loading && rows.length === 0 ? (
-            <div className="px-4 py-8 text-sm text-[#0A2041]/70 text-center">
+            <div className="px-4 py-8 text-sm text-bn-muted/70 text-center">
               No scores yet. Once winners are set, rankings will appear here.
             </div>
           ) : (
@@ -195,8 +195,8 @@ export default function BiggestNightLeaderboardPage() {
                 <div
                   key={row.userId}
                   className={[
-                    "px-4 py-3 flex items-center text-sm border-t border-[#F5B8B0]/40",
-                    isMe ? "bg-[#FEE689]/35" : "",
+                    "px-4 py-3 flex items-center text-sm border-t border-bn-muted/10",
+                    isMe ? "bg-bn-primary/15" : "",
                   ].join(" ")}
                 >
                   <div className="w-12 font-semibold">{rank}</div>
@@ -210,20 +210,20 @@ export default function BiggestNightLeaderboardPage() {
                       <div className="font-bold truncate">
                         {row.displayName ?? "Player"}
                         {isMe ? (
-                          <span className="ml-2 text-[11px] text-[#0A2041]/60">
+                          <span className="ml-2 text-[11px] text-bn-muted/60">
                             (you)
                           </span>
                         ) : null}
                       </div>
                       {isMe && myRowIndex >= 0 ? (
-                        <div className="text-[11px] text-[#0A2041]/55">
+                        <div className="text-[11px] text-bn-muted/60">
                           Chaos favors the bold.
                         </div>
                       ) : null}
                     </div>
                   </div>
 
-                  <div className="w-24 text-right text-[#0A2041]/80">
+                  <div className="w-24 text-right text-bn-muted/80">
                     {row.correctCount}
                   </div>
                   <div className="w-24 text-right font-black">
@@ -235,7 +235,7 @@ export default function BiggestNightLeaderboardPage() {
           )}
         </div>
 
-        <div className="mt-6 text-xs text-[#0A2041]/60">
+        <div className="mt-6 text-xs text-bn-muted/60">
           Points will scale with nominee difficulty once weights are finalized.
         </div>
       </main>

@@ -97,10 +97,39 @@ export default function Navbar() {
     return [];
   }, [context]);
 
-  const activeClass = "text-[#FEE689]";
-  const inactiveClass = "text-white/70 hover:text-[#FEE689] transition-colors font-semibold";
-  const subActiveClass = "text-[#FEE689]";
-  const subInactiveClass = "text-white/70 hover:text-[#FFEFB0] transition-colors font-semibold";
+  const isBiggestNightTheme = context === "biggest-night";
+
+  const activeClass = isBiggestNightTheme ? "text-bn-primary" : "text-[#FEE689]";
+  const inactiveClass = isBiggestNightTheme
+    ? "text-bn-muted/70 hover:text-bn-primary transition-colors font-semibold"
+    : "text-white/70 hover:text-[#FEE689] transition-colors font-semibold";
+  const subActiveClass = isBiggestNightTheme ? "text-bn-primary" : "text-[#FEE689]";
+  const subInactiveClass = isBiggestNightTheme
+    ? "text-bn-muted/70 hover:text-bn-primary/90 transition-colors font-semibold"
+    : "text-white/70 hover:text-[#FFEFB0] transition-colors font-semibold";
+
+  const dividerClass = isBiggestNightTheme ? "text-bn-muted/20" : "text-white/20";
+  const headerClass = isBiggestNightTheme
+    ? "bg-bn-bg shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
+    : "bg-[#0A2041] shadow-[0_2px_12px_rgba(0,0,0,0.25)]";
+  const mobileButtonClass = isBiggestNightTheme
+    ? "inline-flex items-center justify-center rounded-lg border border-bn-muted/30 px-3 py-2 text-bn-primary hover:text-bn-primary/90 hover:border-bn-muted/50 transition"
+    : "inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-[#FEE689] hover:text-[#FFEFB0] hover:border-white/30 transition";
+  const mobilePanelClass = isBiggestNightTheme
+    ? "md:hidden border-t border-bn-muted/20 bg-bn-bg"
+    : "md:hidden border-t border-white/10 bg-[#0A2041]";
+  const mobileActiveClass = isBiggestNightTheme
+    ? "bg-bn-muted/10 text-bn-primary"
+    : "bg-white/10 text-[#FEE689]";
+  const mobileInactiveClass = isBiggestNightTheme
+    ? "text-bn-muted/80 hover:bg-bn-muted/10"
+    : "text-white/80 hover:bg-white/5";
+  const mobileLabelClass = isBiggestNightTheme
+    ? "text-bn-muted/60"
+    : "text-white/55";
+  const ctaClass = isBiggestNightTheme
+    ? "rounded-full bg-bn-primary text-bn-bg px-4 py-2 text-xs font-black hover:opacity-90 disabled:opacity-60"
+    : "rounded-full bg-[#FEE689] text-[#0A2041] px-4 py-2 text-xs font-black hover:opacity-90 disabled:opacity-60";
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -108,7 +137,7 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#0A2041] shadow-[0_2px_12px_rgba(0,0,0,0.25)]">
+    <header className={`sticky top-0 z-50 w-full ${headerClass}`}>
       {/* Top Row: Logo + Global Nav */}
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         {/* Logo */}
@@ -139,28 +168,28 @@ export default function Navbar() {
               </Link>
 
               {idx < globalNav.length - 1 ? (
-                <span className="text-white/20 select-none">|</span>
+                <span className={`${dividerClass} select-none`}>|</span>
               ) : null}
             </div>
           ))}
 
           {isAdmin ? (
             <>
-              <span className="text-white/20 select-none">|</span>
-             <Link href="/admin" className={inactiveClass}>
-  Admin
-</Link>
+              <span className={`${dividerClass} select-none`}>|</span>
+              <Link href="/admin" className={inactiveClass}>
+                Admin
+              </Link>
 
             </>
           ) : null}
 
-          <span className="text-white/20 select-none">|</span>
+          <span className={`${dividerClass} select-none`}>|</span>
 
           <button
             type="button"
             onClick={handleSignOut}
             disabled={loggingOut}
-            className="rounded-full bg-[#FEE689] text-[#0A2041] px-4 py-2 text-xs font-black hover:opacity-90 disabled:opacity-60"
+            className={ctaClass}
           >
             {loggingOut ? "Signing out…" : "Sign out"}
           </button>
@@ -173,7 +202,7 @@ export default function Navbar() {
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-[#FEE689] hover:text-[#FFEFB0] hover:border-white/30 transition"
+            className={mobileButtonClass}
           >
             <span className="font-semibold text-sm">{open ? "✕" : "☰"}</span>
           </button>
@@ -182,12 +211,12 @@ export default function Navbar() {
 
       {/* Second Row: Contextual Subnav (desktop only) */}
       {subNav.length > 0 ? (
-        <div className="hidden md:block border-t border-white/10">
+        <div className={`hidden md:block ${isBiggestNightTheme ? "border-t border-bn-muted/20" : "border-t border-white/10"}`}>
           <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4 text-xs sm:text-sm">
-            <span className="text-white/50 font-bold tracking-wide uppercase">
+            <span className={`${mobileLabelClass} font-bold tracking-wide uppercase`}>
               {context === "biggest-night" ? "Biggest Night" : "Bracket Madness"}
             </span>
-            <span className="text-white/20 select-none">|</span>
+            <span className={`${dividerClass} select-none`}>|</span>
 
             {subNav.map((item, idx) => (
               <div key={item.href} className="flex items-center gap-4">
@@ -201,7 +230,7 @@ export default function Navbar() {
                   {item.label}
                 </Link>
                 {idx < subNav.length - 1 ? (
-                  <span className="text-white/20 select-none">|</span>
+                  <span className={`${dividerClass} select-none`}>|</span>
                 ) : null}
               </div>
             ))}
@@ -211,7 +240,7 @@ export default function Navbar() {
 
       {/* Mobile dropdown panel */}
       {open ? (
-        <div className="md:hidden border-t border-white/10 bg-[#0A2041]">
+        <div className={mobilePanelClass}>
           <nav className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2 text-sm">
             {/* Global links */}
             {globalNav.map((item) => (
@@ -221,8 +250,8 @@ export default function Navbar() {
                 className={[
                   "py-2 rounded-xl px-3 transition-colors font-bold",
                   isActive(item.href)
-                    ? "bg-white/10 text-[#FEE689]"
-                    : "text-white/80 hover:bg-white/5",
+                    ? mobileActiveClass
+                    : mobileInactiveClass,
                 ].join(" ")}
                 onClick={() => setOpen(false)}
               >
@@ -233,7 +262,7 @@ export default function Navbar() {
             {isAdmin ? (
               <Link
                 href="/admin"
-                className="py-2 rounded-xl px-3 transition-colors font-bold text-white/80 hover:bg-white/5"
+                className={`py-2 rounded-xl px-3 transition-colors font-bold ${mobileInactiveClass}`}
                 onClick={() => setOpen(false)}
               >
                 Admin
@@ -242,8 +271,8 @@ export default function Navbar() {
 
             {/* Context subnav */}
             {subNav.length > 0 ? (
-              <div className="mt-2 pt-3 border-t border-white/10">
-                <div className="text-[11px] font-black tracking-[0.18em] uppercase text-white/55 px-3 mb-2">
+              <div className={`mt-2 pt-3 ${isBiggestNightTheme ? "border-t border-bn-muted/20" : "border-t border-white/10"}`}>
+                <div className={`text-[11px] font-black tracking-[0.18em] uppercase ${mobileLabelClass} px-3 mb-2`}>
                   {context === "biggest-night" ? "Biggest Night" : "Bracket Madness"}
                 </div>
 
@@ -254,8 +283,8 @@ export default function Navbar() {
                     className={[
                       "py-2 rounded-xl px-3 transition-colors font-bold",
                       isActive(item.href)
-                        ? "bg-white/10 text-[#FEE689]"
-                        : "text-white/80 hover:bg-white/5",
+                        ? mobileActiveClass
+                        : mobileInactiveClass,
                     ].join(" ")}
                     onClick={() => setOpen(false)}
                   >
@@ -266,18 +295,20 @@ export default function Navbar() {
             ) : null}
 
             {/* Sign out */}
-            <div className="mt-3 pt-3 border-t border-white/10">
+            <div className={`mt-3 pt-3 ${isBiggestNightTheme ? "border-t border-bn-muted/20" : "border-t border-white/10"}`}>
               <button
                 type="button"
                 onClick={handleSignOut}
                 disabled={loggingOut}
-                className="w-full rounded-2xl bg-[#FEE689] text-[#0A2041] px-4 py-3 text-sm font-black hover:opacity-90 disabled:opacity-60"
+                className={`w-full rounded-2xl px-4 py-3 text-sm font-black hover:opacity-90 disabled:opacity-60 ${
+                  isBiggestNightTheme ? "bg-bn-primary text-bn-bg" : "bg-[#FEE689] text-[#0A2041]"
+                }`}
               >
                 {loggingOut ? "Signing out…" : "Sign out"}
               </button>
 
               {email ? (
-                <div className="mt-2 text-[11px] text-white/55 px-1 truncate">
+                <div className={`mt-2 text-[11px] ${mobileLabelClass} px-1 truncate`}>
                   Signed in as {email}
                 </div>
               ) : null}
