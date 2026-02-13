@@ -193,8 +193,8 @@ export default function BiggestNightBallotPage() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-bn-bg text-bn-muted flex items-center justify-center px-4">
-        <div className="rounded-2xl bg-bn-muted/10 border border-bn-muted/20 px-4 py-3 text-sm text-bn-muted/70">
+      <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] flex items-center justify-center px-4">
+        <div className="rounded-2xl bg-[#F9DCD8] border border-[#CA4C4C]/25 px-4 py-3 text-sm text-[#CA4C4C]/85">
           Checking login…
         </div>
       </div>
@@ -202,34 +202,34 @@ export default function BiggestNightBallotPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bn-bg text-bn-muted">
+    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C]">
       {/* Mobile-only header with indicators */}
-      <header className="sticky top-0 z-40 bg-bn-bg text-bn-muted border-b border-bn-muted/20 md:hidden">
+      <header className="sticky top-0 z-40 bg-[#F9DCD8] text-[#CA4C4C] border-b border-[#CA4C4C]/20 md:hidden">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-end gap-3">
-          <div className="flex items-center gap-2 rounded-full bg-bn-muted/10 border border-bn-muted/30 px-3 py-2">
-            <span className="text-xs font-bold text-bn-muted/80">Progress</span>
-            <span className="text-xs font-black text-bn-primary">
+          <div className="flex items-center gap-2 rounded-full bg-[#CA4C4C]/10 border border-[#CA4C4C]/30 px-3 py-2">
+            <span className="text-xs font-bold text-[#CA4C4C]/90">Progress</span>
+            <span className="text-xs font-black text-[#FEE689]">
               {pickedCount}/{totalCategories || "—"}
             </span>
           </div>
 
-          <div className="rounded-full px-3 py-2 text-xs font-black border bg-bn-muted/10 border-bn-muted/30 text-bn-muted/80">
+          <div className="rounded-full px-3 py-2 text-xs font-black border bg-[#CA4C4C]/10 border-[#CA4C4C]/30 text-[#CA4C4C]/90">
             {isLocked ? "Locked" : savingCategoryId ? "Saving…" : "Auto-save"}
           </div>
         </div>
       </header>
 
       {/* Desktop-only header with indicators */}
-      <header className="hidden md:block sticky top-0 z-40 bg-bn-bg text-bn-muted border-t border-bn-muted/20">
+      <header className="hidden md:block sticky top-0 z-40 bg-[#F9DCD8] text-[#CA4C4C] border-t border-[#CA4C4C]/20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-end gap-3">
-          <div className="flex items-center gap-2 rounded-full bg-bn-muted/10 border border-bn-muted/30 px-3 py-2">
-            <span className="text-xs font-bold text-bn-muted/80">Progress</span>
-            <span className="text-xs font-black text-bn-primary">
+          <div className="flex items-center gap-2 rounded-full bg-[#CA4C4C]/10 border border-[#CA4C4C]/30 px-3 py-2">
+            <span className="text-xs font-bold text-[#CA4C4C]/90">Progress</span>
+            <span className="text-xs font-black text-[#FEE689]">
               {pickedCount}/{totalCategories || "—"}
             </span>
           </div>
 
-          <div className="rounded-full px-3 py-2 text-xs font-black border bg-bn-muted/10 border-bn-muted/30 text-bn-muted/80">
+          <div className="rounded-full px-3 py-2 text-xs font-black border bg-[#CA4C4C]/10 border-[#CA4C4C]/30 text-[#CA4C4C]/90">
             {isLocked ? "Locked" : savingCategoryId ? "Saving…" : "Auto-save"}
           </div>
         </div>
@@ -237,25 +237,25 @@ export default function BiggestNightBallotPage() {
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
         {/* Banner */}
-        <div className="mb-6 rounded-3xl border border-bn-muted/20 bg-bn-muted/10 p-5 sm:p-6">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-bn-primary">
-            Make your picks for Hollywood’s Biggest Night
+        <div className="mb-6 rounded-3xl border border-[#CA4C4C] bg-[#CA4C4C] p-5 sm:p-6">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#F8F5EE]">
+            Make your picks for Hollywood&apos;s Biggest Night
           </h1>
-          <p className="mt-2 text-sm text-bn-muted/70">
-            Tap a category, pick one nominee, and we’ll save automatically.
+          <p className="mt-2 text-sm text-[#F8F5EE]/80">
+            Tap a category, pick one nominee, and we&apos;ll save automatically.
           </p>
 
           {season?.lockAt ? (
-            <p className="mt-2 text-xs text-bn-muted/60">
+            <p className="mt-2 text-xs text-[#F8F5EE]/70">
               Ballot lock time:{" "}
-              <span className="font-semibold text-bn-muted">
+              <span className="font-semibold text-[#F8F5EE]">
                 {new Date(season.lockAt).toLocaleString()}
               </span>
             </p>
           ) : null}
 
           {isLocked ? (
-            <div className="mt-4 rounded-2xl bg-bn-primary/15 text-bn-primary border border-bn-primary/30 px-4 py-3 text-sm font-semibold">
+            <div className="mt-4 rounded-2xl bg-[#F8F5EE] text-[#0A2041] border border-[#0A2041]/30 px-4 py-3 text-sm font-semibold">
               This ballot is locked. Picks can’t be changed right now.
             </div>
           ) : null}
@@ -269,13 +269,13 @@ export default function BiggestNightBallotPage() {
 
         {/* Loading / empty states */}
         {loading ? (
-          <div className="text-sm text-bn-muted/70">Loading ballot…</div>
+          <div className="text-sm text-[#CA4C4C]/85">Loading ballot…</div>
         ) : !season ? (
-          <div className="rounded-2xl bg-bn-muted/10 border border-bn-muted/20 p-6 text-sm text-bn-muted/70">
+          <div className="rounded-2xl bg-[#CA4C4C] border border-[#CA4C4C] p-6 text-sm text-[#F8F5EE]/75">
             No active season is set up yet.
           </div>
         ) : categories.length === 0 ? (
-          <div className="rounded-2xl bg-bn-muted/10 border border-bn-muted/20 p-6 text-sm text-bn-muted/70">
+          <div className="rounded-2xl bg-[#CA4C4C] border border-[#CA4C4C] p-6 text-sm text-[#F8F5EE]/75">
             No categories yet.
           </div>
         ) : (
@@ -292,7 +292,7 @@ export default function BiggestNightBallotPage() {
                 <section
                   key={cat.id}
                   className={[
-                    "rounded-3xl border overflow-hidden bg-bn-muted/10 border-bn-muted/20",
+                    "rounded-3xl border overflow-hidden bg-[#CA4C4C] border-[#CA4C4C]",
                     isOpen ? "shadow-[0_18px_60px_-50px_rgba(0,0,0,0.5)]" : "shadow-sm",
                   ].join(" ")}
                 >
@@ -303,23 +303,23 @@ export default function BiggestNightBallotPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-base sm:text-lg font-black truncate">{cat.name}</h2>
+                        <h2 className="text-base sm:text-lg font-black text-[#F8F5EE] truncate">{cat.name}</h2>
                         {pickedNominee ? (
-                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-bn-primary text-bn-bg">
+                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-[#FEE689] text-[#CA4C4C]">
                             Picked
                           </span>
                         ) : (
-                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-bn-bg/60 text-bn-muted/80 border border-bn-muted/30">
+                          <span className="text-[11px] font-black px-2 py-1 rounded-full bg-[#F8F5EE] text-[#0A2041] border border-[#0A2041]/25">
                             Not picked
                           </span>
                         )}
                       </div>
 
-                      <div className="mt-1 text-xs text-bn-muted/70 truncate">
+                      <div className="mt-1 text-xs text-[#F8F5EE]/70 truncate">
                         {pickedNominee ? (
                           <>
                             Selected:{" "}
-                            <span className="font-semibold text-bn-primary">
+                            <span className="font-semibold text-[#F8F5EE]">
                               {pickedNominee.name}
                             </span>
                           </>
@@ -331,16 +331,16 @@ export default function BiggestNightBallotPage() {
 
                     <div className="flex items-center gap-2">
                       {savingCategoryId === cat.id ? (
-                        <span className="text-xs font-bold text-bn-muted/70">Saving…</span>
+                        <span className="text-xs font-bold text-[#F8F5EE]/70">Saving…</span>
                       ) : null}
-                      <span className="text-lg font-black text-bn-primary">{isOpen ? "–" : "+"}</span>
+                      <span className="text-lg font-black text-[#F8F5EE]">{isOpen ? "–" : "+"}</span>
                     </div>
                   </button>
 
                   {isOpen ? (
                     <div className="px-5 sm:px-6 pb-6">
                       {cat.nominees.length === 0 ? (
-                        <div className="rounded-2xl border border-bn-muted/20 bg-bn-muted/10 px-4 py-4 text-sm text-bn-muted/70">
+                        <div className="rounded-2xl border border-[#F8F5EE]/15 bg-[#F8F5EE] px-4 py-4 text-sm text-[#0A2041]/75">
                           Nominees coming soon.
                         </div>
                       ) : (
@@ -363,16 +363,16 @@ export default function BiggestNightBallotPage() {
                                   "w-full text-left rounded-2xl border px-4 py-4 transition",
                                   "hover:-translate-y-[1px] hover:shadow-md active:translate-y-0",
                                   selectedHere
-                                    ? "border-bn-primary bg-bn-primary/15 shadow-sm"
-                                    : "border-bn-muted/20 bg-bn-bg/70",
+                                    ? "border-[#FEE689] bg-[#FEE689] shadow-sm"
+                                    : "border-[#F8F5EE] bg-[#F8F5EE]",
                                   isLocked ? "opacity-60 cursor-not-allowed" : "",
                                 ].join(" ")}
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <div className="font-extrabold text-bn-muted truncate">{n.name}</div>
+                                    <div className="font-extrabold text-[#0A2041] truncate">{n.name}</div>
                                     {n.subtitle ? (
-                                      <div className="mt-1 text-xs text-bn-muted/70 truncate">
+                                      <div className="mt-1 text-xs text-[#0A2041]/70 truncate">
                                         {n.subtitle}
                                       </div>
                                     ) : null}
@@ -380,7 +380,7 @@ export default function BiggestNightBallotPage() {
 
                                   <div className="flex items-center gap-2">
                                     {pointsLabel ? (
-                                      <span className="text-[11px] font-black px-2 py-1 rounded-full bg-bn-primary/20 text-bn-primary border border-bn-primary/40">
+                                      <span className="text-[11px] font-black px-2 py-1 rounded-full bg-[#CA4C4C]/15 text-[#CA4C4C] border border-[#CA4C4C]/25">
                                         {pointsLabel}
                                       </span>
                                     ) : null}
@@ -388,8 +388,8 @@ export default function BiggestNightBallotPage() {
                                       className={[
                                         "h-6 w-6 rounded-full border flex items-center justify-center text-xs font-black",
                                         selectedHere
-                                          ? "border-bn-primary bg-bn-primary text-bn-bg"
-                                          : "border-bn-muted/30 bg-bn-bg text-bn-muted/40",
+                                          ? "border-[#CA4C4C] bg-[#CA4C4C] text-[#FEE689]"
+                                          : "border-[#0A2041]/25 bg-transparent text-[#0A2041]/40",
                                       ].join(" ")}
                                     >
                                       {selectedHere ? "✓" : ""}
@@ -412,12 +412,12 @@ export default function BiggestNightBallotPage() {
         <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link
             href="/biggest-night/leaderboard"
-            className="inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-black bg-bn-primary text-bn-bg hover:opacity-95"
+            className="inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-black bg-[#CA4C4C] text-[#F8F5EE] hover:opacity-95"
           >
             View Leaderboard →
           </Link>
 
-          <div className="text-xs text-bn-muted/60">Your picks are saved automatically.</div>
+          <div className="text-xs text-[#CA4C4C]/80">Your picks are saved automatically.</div>
         </div>
       </main>
 
@@ -435,10 +435,10 @@ export default function BiggestNightBallotPage() {
               className={[
                 "rounded-full px-5 py-3 shadow-lg border text-sm font-black flex items-center gap-2",
                 toast.tone === "success"
-                  ? "bg-bn-primary text-bn-bg border-bn-muted/30"
+                  ? "bg-[#FEE689] text-[#CA4C4C] border-[#CA4C4C]/20"
                   : toast.tone === "error"
                   ? "bg-red-500/60 text-white border-red-400/40"
-                  : "bg-bn-bg text-bn-muted border-bn-muted/30",
+                  : "bg-[#CA4C4C] text-[#F8F5EE] border-[#F8F5EE]/30",
               ].join(" ")}
             >
               <span>{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>
