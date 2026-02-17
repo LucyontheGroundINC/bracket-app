@@ -39,6 +39,7 @@ type BallotResponse = {
 type PickRow = {
   category_id: string | number;
   nominee_id: string | number;
+  tie_breaker_guess?: number | null;
 };
 
 export default function BiggestNightBallotPage() {
@@ -58,6 +59,10 @@ export default function BiggestNightBallotPage() {
 
   // categoryId -> nomineeId
   const [selected, setSelected] = useState<Record<string, string>>({});
+
+  // Tiebreaker guess (in seconds)
+  const [tieBreakerGuess, setTieBreakerGuess] = useState<string>("");
+  const [savingTieBreaker, setSavingTieBreaker] = useState(false);
 
   // saving state
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null);
@@ -127,7 +132,7 @@ export default function BiggestNightBallotPage() {
         if (ballotJson.season?.id) {
           const { data: picks, error: picksErr } = await supabase
             .from("biggest_night_picks")
-            .select("category_id, nominee_id")
+            .select("category_id, nominee_id, tie_breaker_guess")
             .eq("season_id", ballotJson.season.id)
             .eq("user_id", userId);
 
@@ -135,12 +140,20 @@ export default function BiggestNightBallotPage() {
 
           const rows = (picks ?? []) as PickRow[];
           const map: Record<string, string> = {};
+          let tieBreaker: number | null = null;
 
           for (const row of rows) {
             map[String(row.category_id)] = String(row.nominee_id);
+            // All picks share the same tie_breaker_guess, so just grab the first one
+            if (tieBreaker === null && row.tie_breaker_guess != null) {
+              tieBreaker = row.tie_breaker_guess;
+            }
           }
 
           setSelected(map);
+          if (tieBreaker !== null) {
+            setTieBreakerGuess(String(tieBreaker));
+          }
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -167,6 +180,9 @@ export default function BiggestNightBallotPage() {
     setSavingCategoryId(categoryId);
 
     try {
+      // Include tie_breaker_guess if set
+      const guessValue = tieBreakerGuess.trim() === "" ? null : Math.max(0, Math.floor(Number(tieBreakerGuess)));
+
       const { error: upErr } = await supabase
         .from("biggest_night_picks")
         .upsert(
@@ -175,6 +191,7 @@ export default function BiggestNightBallotPage() {
             category_id: categoryId,
             nominee_id: nomineeId,
             user_id: currentUserId,
+            tie_breaker_guess: guessValue,
           },
           { onConflict: "season_id,category_id,user_id" }
         );
@@ -409,7 +426,62 @@ export default function BiggestNightBallotPage() {
           </div>
         )}
 
-        <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {/* Tiebreaker Section */}
+        <div className="mt-8 rounded-3xl border border-[#CA4C4C] bg-[#CA4C4C] p-5 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-black text-[#F8F5EE] mb-2">
+            Tiebreaker
+          </h2>
+          <p className="text-sm text-[#F8F5EE]/80 mb-4">
+            Guess how long (in seconds) the Best Actress acceptance speech will be. Closest without going over wins any tie.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="flex-1 max-w-xs">
+              <label className="block text-xs font-bold text-[#F8F5EE]/90 mb-2">
+                Your guess (seconds)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={tieBreakerGuess}
+                onChange={(e) => setTieBreakerGuess(e.target.value)}
+                disabled={isLocked}
+                placeholder="e.g., 74"
+                className="w-full rounded-xl border border-[#F8F5EE]/30 bg-[#F8F5EE] px-4 py-3 text-[#0A2041] font-semibold disabled:opacity-60"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!season?.id || !currentUserId || isLocked) return;
+                setSavingTieBreaker(true);
+                try {
+                  const guessValue = tieBreakerGuess.trim() === "" ? null : Math.max(0, Math.floor(Number(tieBreakerGuess)));
+                  // Update all picks for this user/season with the tie_breaker_guess
+                  const { error } = await supabase
+                    .from("biggest_night_picks")
+                    .update({ tie_breaker_guess: guessValue })
+                    .eq("season_id", season.id)
+                    .eq("user_id", currentUserId);
+
+                  if (error) throw error;
+                  showToast("Tiebreaker saved ✓", "success");
+                } catch (e) {
+                  showToast("Failed to save tiebreaker", "error");
+                } finally {
+                  setSavingTieBreaker(false);
+                }
+              }}
+              disabled={isLocked || savingTieBreaker}
+              className="rounded-xl bg-[#F8F5EE] text-[#CA4C4C] px-5 py-3 text-sm font-black hover:opacity-95 disabled:opacity-60"
+            >
+              {savingTieBreaker ? "Saving…" : "Save tiebreaker"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Link
             href="/biggest-night/leaderboard"
             className="inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-black bg-[#CA4C4C] text-[#F8F5EE] hover:opacity-95"
