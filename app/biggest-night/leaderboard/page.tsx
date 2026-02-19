@@ -296,7 +296,7 @@ export default function BiggestNightLeaderboardPage() {
                 </>
               ) : null}
             </>
-          )}}
+          )}
         </div>
 
         <div className="mt-6 text-xs text-[#CA4C4C]/80">
