@@ -120,6 +120,24 @@ export default function BiggestNightLeaderboardPage() {
     return rows.findIndex((r) => r.userId === currentUserId);
   }, [rows, currentUserId]);
 
+  // Show top 20 + user if outside top 20
+  const displayRows = useMemo(() => {
+    const top20 = rows.slice(0, 20);
+    
+    // If user is in top 20 or not found, just show top 20
+    if (myRowIndex < 20) {
+      return top20;
+    }
+    
+    // If user is outside top 20, return top 20 + user row
+    return top20;
+  }, [rows, myRowIndex]);
+
+  const userRow = useMemo(() => {
+    if (myRowIndex < 20 || myRowIndex < 0) return null;
+    return rows[myRowIndex] ?? null;
+  }, [rows, myRowIndex]);
+
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4 relative overflow-hidden">
       {/* Statue Background Decoration */}
@@ -137,8 +155,7 @@ export default function BiggestNightLeaderboardPage() {
               Hollywood's Biggest Night
             </h1>
             <p className="text-sm text-[#CA4C4C]/85 mt-1">
-              Scores update after winners are set. Tie-breaker: points → correct
-              picks.
+              Scores update after winners are set. Tie-Breaker - Time of Best Actress Speech.
             </p>
 
             {season?.name ? (
@@ -194,52 +211,92 @@ export default function BiggestNightLeaderboardPage() {
               No scores yet. Once winners are set, rankings will appear here.
             </div>
           ) : (
-            rows.map((row, idx) => {
-              const rank = idx + 1;
-              const isMe = row.userId === currentUserId;
+            <>
+              {displayRows.map((row, idx) => {
+                const rank = idx + 1;
+                const isMe = row.userId === currentUserId;
 
-              return (
-                <div
-                  key={row.userId}
-                  className={[
-                    "px-4 py-3 flex items-center text-sm border-t border-[#F8F5EE]/15",
-                    isMe ? "bg-[#FEE689]" : "",
-                  ].join(" ")}
-                >
-                  <div className="w-12 font-semibold">{rank}</div>
+                return (
+                  <div
+                    key={row.userId}
+                    className={[
+                      "px-4 py-3 flex items-center text-sm border-t border-[#F8F5EE]/15",
+                      isMe ? "bg-[#FEE689]" : "",
+                    ].join(" ")}
+                  >
+                    <div className="w-12 font-semibold">{rank}</div>
 
-                  <div className="flex-1 flex items-center gap-3 min-w-0">
-                    <Avatar
-                      name={row.displayName ?? "Player"}
-                      src={row.avatarUrl}
-                    />
-                    <div className="min-w-0">
-                      <div className="font-bold truncate">
-                        {row.displayName ?? "Player"}
-                        {isMe ? (
-                          <span className="ml-2 text-[11px] text-[#CA4C4C]/60">
-                            (you)
-                          </span>
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <Avatar
+                        name={row.displayName ?? "Player"}
+                        src={row.avatarUrl}
+                      />
+                      <div className="min-w-0">
+                        <div className="font-bold truncate">
+                          {row.displayName ?? "Player"}
+                          {isMe ? (
+                            <span className="ml-2 text-[11px] text-[#CA4C4C]/60">
+                              (you)
+                            </span>
+                          ) : null}
+                        </div>
+                        {isMe && myRowIndex >= 0 ? (
+                          <div className="text-[11px] text-[#CA4C4C]/60">
+                            Chaos favors the bold.
+                          </div>
                         ) : null}
                       </div>
-                      {isMe && myRowIndex >= 0 ? (
-                        <div className="text-[11px] text-[#CA4C4C]/60">
-                          Chaos favors the bold.
-                        </div>
-                      ) : null}
+                    </div>
+
+                    <div className="w-24 text-right text-[#F8F5EE]/80">
+                      {row.correctCount}
+                    </div>
+                    <div className="w-24 text-right font-black text-[#F8F5EE]">
+                      {row.totalScore}
                     </div>
                   </div>
+                );
+              })}
+              
+              {userRow ? (
+                <>
+                  <div className="px-4 py-3 border-t border-[#F8F5EE]/15 bg-[#CA4C4C]/50 text-center text-xs text-[#F8F5EE]/70">
+                    ... and {myRowIndex - 20} more players ...
+                  </div>
+                  <div
+                    className="px-4 py-3 flex items-center text-sm border-t border-[#FEE689] bg-[#FEE689]"
+                  >
+                    <div className="w-12 font-semibold text-[#CA4C4C]">{myRowIndex + 1}</div>
 
-                  <div className="w-24 text-right text-[#F8F5EE]/80">
-                    {row.correctCount}
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <Avatar
+                        name={userRow.displayName ?? "Player"}
+                        src={userRow.avatarUrl}
+                      />
+                      <div className="min-w-0">
+                        <div className="font-bold truncate text-[#CA4C4C]">
+                          {userRow.displayName ?? "Player"}
+                          <span className="ml-2 text-[11px] text-[#CA4C4C]/70">
+                            (you)
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#CA4C4C]/70">
+                          Chaos favors the bold.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-24 text-right text-[#CA4C4C]/80">
+                      {userRow.correctCount}
+                    </div>
+                    <div className="w-24 text-right font-black text-[#CA4C4C]">
+                      {userRow.totalScore}
+                    </div>
                   </div>
-                  <div className="w-24 text-right font-black text-[#F8F5EE]">
-                    {row.totalScore}
-                  </div>
-                </div>
-              );
-            })
-          )}
+                </>
+              ) : null}
+            </>
+          )}}
         </div>
 
         <div className="mt-6 text-xs text-[#CA4C4C]/80">
