@@ -219,7 +219,14 @@ export default function BiggestNightBallotPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C]">
+    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] relative overflow-hidden">
+      {/* Statue Background Decoration */}
+      <div className="absolute top-0 left-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
+      <div className="absolute top-0 right-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
       {/* Mobile-only header with indicators */}
       <header className="sticky top-0 z-40 bg-[#F9DCD8] text-[#CA4C4C] border-b border-[#CA4C4C]/20 md:hidden">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-end gap-3">
@@ -252,7 +259,7 @@ export default function BiggestNightBallotPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8 relative z-10">
         {/* Banner */}
         <div className="mb-6 rounded-3xl border border-[#CA4C4C] bg-[#CA4C4C] p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#F8F5EE]">

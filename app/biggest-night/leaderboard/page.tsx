@@ -121,13 +121,20 @@ export default function BiggestNightLeaderboardPage() {
   }, [rows, currentUserId]);
 
   return (
-    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4">
-      <main className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4 relative overflow-hidden">
+      {/* Statue Background Decoration */}
+      <div className="absolute top-0 left-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
+      <div className="absolute top-0 right-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
+      <main className="max-w-4xl mx-auto relative z-10">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#FEE689]">
-              Biggest Night Leaderboard
+            <h1 className="text-2xl sm:text-3xl font-black text-[#0A2041]">
+              Hollywood's Biggest Night
             </h1>
             <p className="text-sm text-[#CA4C4C]/85 mt-1">
               Scores update after winners are set. Tie-breaker: points → correct

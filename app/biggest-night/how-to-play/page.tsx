@@ -19,8 +19,15 @@ const SECTIONS = [
 
 export default function HowToPlayPage() {
   return (
-    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4">
-      <main className="mx-auto max-w-5xl">
+    <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4 relative overflow-hidden">
+      {/* Statue Background Decoration */}
+      <div className="absolute top-0 left-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
+      <div className="absolute top-0 right-0 w-48 h-full opacity-10 pointer-events-none">
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
+      </div>
+      <main className="mx-auto max-w-5xl relative z-10">
         <div className="mb-5 flex flex-wrap items-center gap-2 text-sm font-black">
           <Link
             href="/biggest-night/ballot"
