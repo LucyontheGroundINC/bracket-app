@@ -124,10 +124,10 @@ export default function BiggestNightLeaderboardPage() {
     <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] pt-24 pb-10 px-4 relative overflow-hidden">
       {/* Statue Background Decoration */}
       <div className="absolute top-0 left-0 w-48 h-full opacity-10 pointer-events-none">
-        <img src="/hollywoods%20biggest%20night%20statue.svg" alt="" className="w-full h-full object-cover" />
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
       </div>
       <div className="absolute top-0 right-0 w-48 h-full opacity-10 pointer-events-none">
-        <img src="/hollywoods%20biggest%20night%20statue.svg" alt="" className="w-full h-full object-cover" />
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
       </div>
       <main className="max-w-4xl mx-auto relative z-10">
         {/* Header */}

@@ -222,10 +222,10 @@ export default function BiggestNightBallotPage() {
     <div className="min-h-screen bg-[#F9DCD8] text-[#CA4C4C] relative overflow-hidden">
       {/* Statue Background Decoration */}
       <div className="absolute top-0 left-0 w-48 h-full opacity-10 pointer-events-none">
-        <img src="/hollywoods%20biggest%20night%20statue.svg" alt="" className="w-full h-full object-cover" />
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
       </div>
       <div className="absolute top-0 right-0 w-48 h-full opacity-10 pointer-events-none">
-        <img src="/hollywoods%20biggest%20night%20statue.svg" alt="" className="w-full h-full object-cover" />
+        <img src="/hollywoods-biggest-night-statue.svg" alt="" className="w-full h-full object-cover" />
       </div>
       {/* Mobile-only header with indicators */}
       <header className="sticky top-0 z-40 bg-[#F9DCD8] text-[#CA4C4C] border-b border-[#CA4C4C]/20 md:hidden">
