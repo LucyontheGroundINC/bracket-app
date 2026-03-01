@@ -39,7 +39,10 @@ type BallotResponse = {
 type PickRow = {
   category_id: string | number;
   nominee_id: string | number;
-  tie_breaker_guess?: number | null;
+};
+
+type TiebreakerRow = {
+  guess_seconds: number | null;
 };
 
 export default function BiggestNightBallotPage() {
@@ -77,6 +80,18 @@ export default function BiggestNightBallotPage() {
   function showToast(message: string, tone: "success" | "error" | "info" = "success") {
     setToast({ show: true, message, tone });
     window.setTimeout(() => setToast((t) => ({ ...t, show: false })), 1200);
+  }
+
+  function parseTieBreakerGuess(raw: string): number | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      throw new Error("Tiebreaker guess must be a valid number.");
+    }
+
+    return Math.max(0, Math.floor(parsed));
   }
 
   const isLocked = useMemo(() => {
@@ -132,7 +147,7 @@ export default function BiggestNightBallotPage() {
         if (ballotJson.season?.id) {
           const { data: picks, error: picksErr } = await supabase
             .from("biggest_night_picks")
-            .select("category_id, nominee_id, tie_breaker_guess")
+            .select("category_id, nominee_id")
             .eq("season_id", ballotJson.season.id)
             .eq("user_id", userId);
 
@@ -140,19 +155,25 @@ export default function BiggestNightBallotPage() {
 
           const rows = (picks ?? []) as PickRow[];
           const map: Record<string, string> = {};
-          let tieBreaker: number | null = null;
 
           for (const row of rows) {
             map[String(row.category_id)] = String(row.nominee_id);
-            // All picks share the same tie_breaker_guess, so just grab the first one
-            if (tieBreaker === null && row.tie_breaker_guess != null) {
-              tieBreaker = row.tie_breaker_guess;
-            }
           }
 
           setSelected(map);
-          if (tieBreaker !== null) {
-            setTieBreakerGuess(String(tieBreaker));
+
+          const { data: tiebreaker, error: tiebreakerErr } = await supabase
+            .from("biggest_night_tiebreakers")
+            .select("guess_seconds")
+            .eq("season_id", ballotJson.season.id)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (tiebreakerErr) throw new Error(tiebreakerErr.message);
+
+          const tiebreakerRow = (tiebreaker ?? null) as TiebreakerRow | null;
+          if (tiebreakerRow?.guess_seconds != null) {
+            setTieBreakerGuess(String(tiebreakerRow.guess_seconds));
           }
         }
       } catch (e: unknown) {
@@ -180,9 +201,6 @@ export default function BiggestNightBallotPage() {
     setSavingCategoryId(categoryId);
 
     try {
-      // Include tie_breaker_guess if set
-      const guessValue = tieBreakerGuess.trim() === "" ? null : Math.max(0, Math.floor(Number(tieBreakerGuess)));
-
       const { error: upErr } = await supabase
         .from("biggest_night_picks")
         .upsert(
@@ -191,7 +209,6 @@ export default function BiggestNightBallotPage() {
             category_id: categoryId,
             nominee_id: nomineeId,
             user_id: currentUserId,
-            tie_breaker_guess: guessValue,
           },
           { onConflict: "season_id,category_id,user_id" }
         );
@@ -464,17 +481,22 @@ export default function BiggestNightBallotPage() {
                 if (!season?.id || !currentUserId || isLocked) return;
                 setSavingTieBreaker(true);
                 try {
-                  const guessValue = tieBreakerGuess.trim() === "" ? null : Math.max(0, Math.floor(Number(tieBreakerGuess)));
-                  // Update all picks for this user/season with the tie_breaker_guess
+                  const guessValue = parseTieBreakerGuess(tieBreakerGuess);
+
                   const { error } = await supabase
-                    .from("biggest_night_picks")
-                    .update({ tie_breaker_guess: guessValue })
-                    .eq("season_id", season.id)
-                    .eq("user_id", currentUserId);
+                    .from("biggest_night_tiebreakers")
+                    .upsert(
+                      {
+                        season_id: season.id,
+                        user_id: currentUserId,
+                        guess_seconds: guessValue,
+                      },
+                      { onConflict: "season_id,user_id" }
+                    );
 
                   if (error) throw error;
                   showToast("Tiebreaker saved ✓", "success");
-                } catch (e) {
+                } catch {
                   showToast("Failed to save tiebreaker", "error");
                 } finally {
                   setSavingTieBreaker(false);

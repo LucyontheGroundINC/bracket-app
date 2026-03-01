@@ -92,14 +92,6 @@ export default function BiggestNightLeaderboardPage() {
               .filter((r) => r.userId)
           : [];
 
-        normalized.sort((a, b) => {
-          if (b.totalScore !== a.totalScore)
-            return b.totalScore - a.totalScore;
-          if (b.correctCount !== a.correctCount)
-            return b.correctCount - a.correctCount;
-          return (a.displayName ?? "").localeCompare(b.displayName ?? "");
-        });
-
         setRows(normalized);
         setNote(json.note ?? null);
       } catch (e: unknown) {

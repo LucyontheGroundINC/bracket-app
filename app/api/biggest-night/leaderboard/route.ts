@@ -2,7 +2,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-type SeasonRow = { id: string; name: string; year: number | null; is_active: boolean };
+type SeasonRow = {
+  id: string;
+  name: string;
+  year: number | null;
+  is_active: boolean;
+  tie_breaker_seconds: number | null;
+};
 
 type CategoryIdRow = { id: string };
 
@@ -24,6 +30,11 @@ type ProfileRow = {
   avatar_url: string | null;
 };
 
+type TiebreakerRow = {
+  user_id: string;
+  guess_seconds: number | null;
+};
+
 export async function GET(req: Request) {
   try {
     if (!supabaseAdmin) {
@@ -39,7 +50,7 @@ export async function GET(req: Request) {
     if (seasonIdParam) {
       const { data, error } = await supabaseAdmin
         .from("biggest_night_seasons")
-        .select("id, name, year, is_active")
+        .select("id, name, year, is_active, tie_breaker_seconds")
         .eq("id", seasonIdParam)
         .maybeSingle();
 
@@ -48,7 +59,7 @@ export async function GET(req: Request) {
     } else {
       const { data, error } = await supabaseAdmin
         .from("biggest_night_seasons")
-        .select("id, name, year, is_active")
+        .select("id, name, year, is_active, tie_breaker_seconds")
         .eq("is_active", true)
         .maybeSingle();
 
@@ -150,6 +161,51 @@ export async function GET(req: Request) {
       }
     }
 
+    const tiebreakerByUser = new Map<string, number | null>();
+    const { data: tiebreakers, error: tiebreakersErr } = await supabaseAdmin
+      .from("biggest_night_tiebreakers")
+      .select("user_id, guess_seconds")
+      .eq("season_id", season.id)
+      .in("user_id", userIds);
+
+    if (!tiebreakersErr) {
+      const tiebreakerRows = (tiebreakers ?? []) as TiebreakerRow[];
+      for (const row of tiebreakerRows) {
+        tiebreakerByUser.set(String(row.user_id), row.guess_seconds ?? null);
+      }
+    }
+
+    const officialTieBreaker =
+      season.tie_breaker_seconds == null ? null : Number(season.tie_breaker_seconds);
+
+    function compareByTieBreaker(userIdA: string, userIdB: string): number {
+      if (officialTieBreaker == null || !Number.isFinite(officialTieBreaker)) return 0;
+
+      const guessA = tiebreakerByUser.get(userIdA);
+      const guessB = tiebreakerByUser.get(userIdB);
+
+      const isValidA = typeof guessA === "number" && Number.isFinite(guessA) && guessA <= officialTieBreaker;
+      const isValidB = typeof guessB === "number" && Number.isFinite(guessB) && guessB <= officialTieBreaker;
+
+      if (isValidA !== isValidB) return isValidA ? -1 : 1;
+
+      if (isValidA && isValidB) {
+        const deltaA = officialTieBreaker - (guessA as number);
+        const deltaB = officialTieBreaker - (guessB as number);
+        if (deltaA !== deltaB) return deltaA - deltaB;
+        return (guessB as number) - (guessA as number);
+      }
+
+      if (guessA == null && guessB != null) return 1;
+      if (guessA != null && guessB == null) return -1;
+      if (guessA == null && guessB == null) return 0;
+
+      const overA = (guessA as number) - officialTieBreaker;
+      const overB = (guessB as number) - officialTieBreaker;
+      if (overA !== overB) return overA - overB;
+      return (guessA as number) - (guessB as number);
+    }
+
     // 7) Build leaderboard + sort (points -> correct games -> name)
     const leaderboard = Array.from(totalsByUser.entries())
       .map(([userId, { totalScore, correctCount }]) => {
@@ -165,6 +221,10 @@ export async function GET(req: Request) {
       .sort((a, b) => {
         if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
         if (b.correctCount !== a.correctCount) return b.correctCount - a.correctCount;
+
+        const tiebreakerCmp = compareByTieBreaker(a.userId, b.userId);
+        if (tiebreakerCmp !== 0) return tiebreakerCmp;
+
         const nameA = (a.displayName ?? "").toLowerCase();
         const nameB = (b.displayName ?? "").toLowerCase();
         return nameA.localeCompare(nameB);
