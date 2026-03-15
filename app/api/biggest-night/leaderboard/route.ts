@@ -27,6 +27,13 @@ type PickRow = {
 type ProfileRow = {
   user_id: string;
   display_name: string | null;
+  team_name: string | null;
+  avatar_url: string | null;
+};
+
+type UserRow = {
+  id: string;
+  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -142,21 +149,41 @@ export async function GET(req: Request) {
 
     if (totalsByUser.size === 0) return NextResponse.json({ season, leaderboard: [] });
 
-    // 6) Attach display_name + avatar_url from profiles (your schema uses user_id)
+    // 6) Attach display_name + avatar_url (users first, profiles fallback)
     const userIds = Array.from(totalsByUser.keys());
 
     const userInfo = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
+
+    const { data: usersData, error: usersErr } = await supabaseAdmin
+      .from("users")
+      .select("id, display_name, avatar_url")
+      .in("id", userIds);
+
+    if (!usersErr) {
+      const userRows = (usersData ?? []) as UserRow[];
+      for (const raw of userRows) {
+        userInfo.set(String(raw.id), {
+          displayName: raw.display_name?.trim() || null,
+          avatarUrl: raw.avatar_url ?? null,
+        });
+      }
+    }
+
     const { data: profs, error: profErr } = await supabaseAdmin
       .from("profiles")
-      .select("user_id, display_name, avatar_url")
+      .select("user_id, display_name, team_name, avatar_url")
       .in("user_id", userIds);
 
     if (!profErr) {
       const profRows = (profs ?? []) as ProfileRow[];
       for (const raw of profRows) {
-        userInfo.set(String(raw.user_id), {
-          displayName: raw.display_name ?? null,
-          avatarUrl: raw.avatar_url ?? null,
+        const key = String(raw.user_id);
+        const existing = userInfo.get(key);
+
+        userInfo.set(key, {
+          displayName:
+            existing?.displayName ?? raw.display_name?.trim() ?? raw.team_name?.trim() ?? null,
+          avatarUrl: existing?.avatarUrl ?? raw.avatar_url ?? null,
         });
       }
     }

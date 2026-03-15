@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/admin";
 import Avatar from "@/components/Avatar";
 
 type LeaderboardRow = {
@@ -61,6 +62,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canView, setCanView] = useState<boolean | null>(null);
 
   const [activeTournamentId, setActiveTournamentId] = useState<number | null>(null);
   const [activeTournamentName, setActiveTournamentName] = useState<string>("");
@@ -74,15 +76,33 @@ export default function LeaderboardPage() {
       const { data, error: authError } = await supabase.auth.getUser();
       if (authError) {
         console.error("Error loading user for leaderboard:", authError.message);
+        setCanView(false);
+        if (typeof window !== "undefined") {
+          window.location.replace("/coming-soon");
+        }
         return;
       }
+
+      const authEmail = data.user?.email ?? null;
+      const isAdmin = isAdminEmail(authEmail);
+      if (!isAdmin) {
+        setCanView(false);
+        if (typeof window !== "undefined") {
+          window.location.replace("/coming-soon");
+        }
+        return;
+      }
+
       setCurrentUserId(data.user?.id ?? null);
+      setCanView(true);
     };
     loadUser();
   }, []);
 
   // ------------------ Detect active tournament ------------------
   useEffect(() => {
+    if (canView !== true) return;
+
     const loadActiveTournament = async () => {
       try {
         const res = await fetch("/api/tournaments", { cache: "no-store" });
@@ -108,11 +128,11 @@ export default function LeaderboardPage() {
     };
 
     loadActiveTournament();
-  }, []);
+  }, [canView]);
 
   // ------------------ Load leaderboard for active tournament ------------------
   useEffect(() => {
-    if (!activeTournamentId) return;
+    if (canView !== true || !activeTournamentId) return;
 
     const load = async () => {
       setLoading(true);

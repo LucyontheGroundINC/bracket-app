@@ -31,11 +31,14 @@ function normalizeRow(input: unknown): LeaderboardRow {
       ? (input as Record<string, unknown>)
       : {};
 
+  const displayNameRaw =
+    r.displayName ?? r.display_name ?? r.teamName ?? r.team_name ?? null;
+
   return {
     userId: String(r.userId ?? r.user_id ?? ""),
     displayName:
-      typeof r.displayName === "string" && r.displayName.trim()
-        ? r.displayName
+      typeof displayNameRaw === "string" && displayNameRaw.trim()
+        ? displayNameRaw
         : null,
     avatarUrl:
       typeof r.avatarUrl === "string" && r.avatarUrl.trim()

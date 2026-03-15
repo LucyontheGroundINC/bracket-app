@@ -19,6 +19,12 @@ type PickRow = {
   chosen_winner: "team1" | "team2" | null;
 };
 
+type UserRow = {
+  id: string | number;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
 // GET /api/scores/leaderboard?tournamentId=...
 export async function GET() {
   try {
@@ -96,9 +102,26 @@ export async function GET() {
 
     if (totalsByUser.size === 0) return NextResponse.json([]);
 
-    // 4) Look up display names + avatars from profiles table
+    // 4) Look up display names + avatars (users first, profiles fallback)
     const userIds = Array.from(totalsByUser.keys());
     const userInfo = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
+
+    const { data: dbUsers, error: dbUsersError } = await supabaseAdmin
+      .from("users")
+      .select("id, display_name, avatar_url")
+      .in("id", userIds);
+
+    if (dbUsersError) {
+      console.warn("[leaderboard] Could not load users:", dbUsersError);
+    } else {
+      for (const raw of (dbUsers ?? []) as UserRow[]) {
+        const id = String(raw.id);
+        userInfo.set(id, {
+          displayName: raw.display_name?.trim() || null,
+          avatarUrl: raw.avatar_url ?? null,
+        });
+      }
+    }
 
     const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
       .from("profiles")
@@ -114,9 +137,10 @@ export async function GET() {
         avatar_url: string | null;
       }>) {
         const id = String(raw.user_id);
+        const existing = userInfo.get(id);
         userInfo.set(id, {
-          displayName: raw.display_name ?? null,
-          avatarUrl: raw.avatar_url ?? null,
+          displayName: existing?.displayName ?? raw.display_name?.trim() ?? null,
+          avatarUrl: existing?.avatarUrl ?? raw.avatar_url ?? null,
         });
       }
     }

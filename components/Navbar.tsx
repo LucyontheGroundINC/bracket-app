@@ -4,9 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/admin";
 import { usePathname } from "next/navigation";
-
-const ADMIN_EMAIL = "lucyonthegroundwithrocks@gmail.com";
 
 type NavItem = { href: string; label: string };
 
@@ -17,7 +16,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const isAdmin = email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(email);
 
   // Close mobile menu on route change
   useEffect(() => {

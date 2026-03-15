@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { isAdminEmail } from '@/lib/admin';
 import EditProfileCard from '@/components/EditProfileCard';
-
-const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
 
 type UserInfo = {
   id: string;
@@ -68,7 +67,7 @@ export default function DashboardPage() {
     loadUser();
   }, []);
 
-  const isAdmin = authEmail === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(authEmail);
 
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] pt-24 pb-10 px-4">

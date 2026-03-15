@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-
-// same admin email as everywhere else
-const ADMIN_EMAIL = "lucyonthegroundwithrocks@gmail.com";
+import { isAdminEmail } from "@/lib/admin";
 
 type MatchInfo = {
   round: number;
@@ -102,7 +100,7 @@ export default function AdminPicksPage() {
       const email = user?.email ?? null;
       setAdminEmail(email);
 
-      const admin = email === ADMIN_EMAIL;
+      const admin = isAdminEmail(email);
       setIsAdmin(admin);
       setAuthChecking(false);
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { isAdminEmail } from '@/lib/admin';
 import Image from 'next/image';
 
 // ------------------ Types ------------------
@@ -45,9 +46,6 @@ type PickRow = {
 
 type BracketViewMode = 'guided' | 'full';
 
-// ------------------ Config ------------------
-const ADMIN_EMAIL = 'lucyonthegroundwithrocks@gmail.com';
-
 const roundLabels: Record<number, string> = {
   1: 'Round 1',
   2: 'Round 2',
@@ -87,7 +85,7 @@ export default function BracketPage() {
   // Are we viewing someone else's bracket via ?u=<userId>?
   const [isReadOnlyView, setIsReadOnlyView] = useState(false);
 
-  const isAdmin = userEmail === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(userEmail);
   const winnerMode: 'user' | 'admin' = isAdmin ? 'admin' : 'user';
 
   const [isMobile, setIsMobile] = useState(false);
@@ -133,7 +131,16 @@ export default function BracketPage() {
         const authUser = auth.user ?? null;
         if (!mounted) return;
 
-        setUserEmail(authUser?.email ?? null);
+        const authEmail = authUser?.email ?? null;
+        setUserEmail(authEmail);
+
+        const isAdminUser = isAdminEmail(authEmail);
+        if (!isAdminUser) {
+          if (typeof window !== 'undefined') {
+            window.location.replace('/coming-soon');
+          }
+          return;
+        }
 
         // Read ?u=<userId> from the URL (shared view)
         let viewUserId: string | null = null;

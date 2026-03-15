@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-
-const ADMIN_EMAIL = "lucyonthegroundwithrocks@gmail.com";
+import { isAdminEmail } from "@/lib/admin";
 
 type SeasonRow = {
   id: string;
@@ -47,7 +46,7 @@ export default function BiggestNightAdminPage() {
   const [lockAtInput, setLockAtInput] = useState<string>("");
   const [tieBreakerSecondsInput, setTieBreakerSecondsInput] = useState<string>("");
 
-  const isAdmin = email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(email);
 
   function showToast(msg: string) {
     setToast(msg);
