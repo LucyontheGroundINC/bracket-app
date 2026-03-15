@@ -49,6 +49,16 @@ function normalizeRow(input: unknown): LeaderboardRow {
   };
 }
 
+function ordinalPlace(rank: number): string {
+  const mod100 = rank % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${rank}th`;
+  const mod10 = rank % 10;
+  if (mod10 === 1) return `${rank}st`;
+  if (mod10 === 2) return `${rank}nd`;
+  if (mod10 === 3) return `${rank}rd`;
+  return `${rank}th`;
+}
+
 export default function BiggestNightLeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState<Season | null>(null);
@@ -219,7 +229,19 @@ export default function BiggestNightLeaderboardPage() {
                       isMe ? "bg-[#FEE689]" : "",
                     ].join(" ")}
                   >
-                    <div className="w-12 font-semibold">{rank}</div>
+                    <div className="w-12">
+                      <div className={["font-semibold", isMe ? "text-[#CA4C4C]" : "text-[#F8F5EE]"].join(" ")}>
+                        {rank}
+                      </div>
+                      <div
+                        className={[
+                          "text-[10px] leading-tight",
+                          isMe ? "text-[#CA4C4C]/70" : "text-[#F8F5EE]/65",
+                        ].join(" ")}
+                      >
+                        {ordinalPlace(rank)} place
+                      </div>
+                    </div>
 
                     <div className="flex-1 flex items-center gap-3 min-w-0">
                       <Avatar
@@ -227,7 +249,7 @@ export default function BiggestNightLeaderboardPage() {
                         src={row.avatarUrl}
                       />
                       <div className="min-w-0">
-                        <div className="font-bold truncate">
+                        <div className={["font-bold truncate", isMe ? "text-[#CA4C4C]" : "text-[#F8F5EE]"].join(" ")}>
                           {row.displayName ?? "Player"}
                           {isMe ? (
                             <span className="ml-2 text-[11px] text-[#CA4C4C]/60">
@@ -261,7 +283,12 @@ export default function BiggestNightLeaderboardPage() {
                   <div
                     className="px-4 py-3 flex items-center text-sm border-t border-[#FEE689] bg-[#FEE689]"
                   >
-                    <div className="w-12 font-semibold text-[#CA4C4C]">{myRowIndex + 1}</div>
+                    <div className="w-12">
+                      <div className="font-semibold text-[#CA4C4C]">{myRowIndex + 1}</div>
+                      <div className="text-[10px] leading-tight text-[#CA4C4C]/70">
+                        {ordinalPlace(myRowIndex + 1)} place
+                      </div>
+                    </div>
 
                     <div className="flex-1 flex items-center gap-3 min-w-0">
                       <Avatar
