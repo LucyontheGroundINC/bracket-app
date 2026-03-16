@@ -134,14 +134,6 @@ export default function BracketPage() {
         const authEmail = authUser?.email ?? null;
         setUserEmail(authEmail);
 
-        const isAdminUser = isAdminEmail(authEmail);
-        if (!isAdminUser) {
-          if (typeof window !== 'undefined') {
-            window.location.replace('/coming-soon');
-          }
-          return;
-        }
-
         // Read ?u=<userId> from the URL (shared view)
         let viewUserId: string | null = null;
         if (typeof window !== 'undefined') {

@@ -35,7 +35,6 @@ export default function HomePage() {
           <Link
             href="/biggest-night/ballot"
             className="relative w-80 h-96 sm:w-96 sm:h-[480px] rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow hover:scale-105 transform transition-transform"
-            style={{ boxShadow: '0 0 40px 10px #FEE689' }}
           >
             <Image
               src="/hollywoods-biggest-night-logo.svg"
@@ -46,16 +45,17 @@ export default function HomePage() {
             />
           </Link>
 
-          {/* Bracket Madness */}
+          {/* Bracket Challenge */}
           <Link
             href="/dashboard/brackets"
             className="relative w-80 h-96 sm:w-96 sm:h-[480px] rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow hover:scale-105 transform transition-transform"
+            style={{ boxShadow: '0 0 40px 10px #FEE689' }}
           >
             <Image
-              src="/bracket-madness-logo.svg"
-              alt="Bracket Madness"
+              src="/Bop Princess Logo.svg"
+              alt="Bracket Challenge"
               fill
-              className="object-cover"
+              className="object-contain"
               priority
             />
           </Link>

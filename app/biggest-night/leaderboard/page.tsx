@@ -157,7 +157,7 @@ export default function BiggestNightLeaderboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-[#0A2041]">
-              Hollywood's Biggest Night
+              Hollywood&apos;s Biggest Night
             </h1>
             <p className="text-sm text-[#CA4C4C]/85 mt-1">
               Scores update after winners are set. Tie-Breaker - Time of Best Actress Speech.
