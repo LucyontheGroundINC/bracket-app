@@ -94,15 +94,19 @@ export default function AdminSettingsPage() {
     const json = await res.json().catch(() => null);
 
     if (!res.ok) {
+      const errors = Array.isArray(json?.errors) ? json.errors : [];
+      const summary = errors.length
+        ? `${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ""}`
+        : json?.error ?? json?.message ?? "Unknown error";
       setImportStatus(
-        `Validation failed: ${
-          json?.errors?.[0] ?? json?.error ?? json?.message ?? "Unknown error"
-        }`
+        `Validation failed: ${summary}`
       );
       return;
     }
 
-    setImportStatus(`✅ Valid. Parsed rows: ${json?.parsedRows ?? 0}`);
+    setImportStatus(
+      `✅ Valid. Parsed rows: ${json?.parsedRows ?? 0}. Resolved rows: ${json?.resolvedRows ?? 0}`
+    );
   }
 
   async function handleImportGamesCsv() {
@@ -137,11 +141,17 @@ export default function AdminSettingsPage() {
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setImportStatus(`Import failed: ${json?.error ?? json?.message ?? "Unknown error"}`);
+        const errors = Array.isArray(json?.errors) ? json.errors : [];
+        const summary = errors.length
+          ? `${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ""}`
+          : json?.error ?? json?.message ?? "Unknown error";
+        setImportStatus(`Import failed: ${summary}`);
         return;
       }
 
-      setImportStatus(`✅ Imported. Rows upserted: ${json?.rowsUpserted ?? 0}`);
+      setImportStatus(
+        `✅ Imported. Rows upserted: ${json?.rowsUpserted ?? 0} (from ${json?.parsedRows ?? 0} parsed rows).`
+      );
     } finally {
       setImporting(false);
     }
@@ -1002,13 +1012,19 @@ export default function AdminSettingsPage() {
                     <textarea
                       value={gamesCsv}
                       onChange={(e) => setGamesCsv(e.target.value)}
-                      placeholder="Paste CSV here…"
+                      placeholder={[
+                        "Paste CSV here…",
+                        "",
+                        "Option A (IDs): round,game_index,team_a_id,team_b_id,winner_id",
+                        "Option B (Names): round,game_index,team_a_name,team_b_name,winner_name",
+                      ].join("\n")}
                       className="w-full min-h-[140px] rounded-xl border border-[#F5B8B0] bg-[#FDF3EE] p-3 text-[12px] font-mono"
                     />
 
                     <p className="text-[11px] text-[#0A2041]/60">
-                      Expected columns (example):{" "}
-                      <code>round,game_index,team_a_id,team_b_id,winner_id</code>
+                      Expected columns: <code>round,game_index</code> + either team IDs (
+                      <code>team_a_id,team_b_id,winner_id</code>) or team names (
+                      <code>team_a_name,team_b_name,winner_name</code>).
                     </p>
 
                     {importStatus ? (
