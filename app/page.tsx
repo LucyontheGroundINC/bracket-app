@@ -52,7 +52,7 @@ export default function HomePage() {
             style={{ boxShadow: '0 0 40px 10px #FEE689' }}
           >
             <Image
-              src="/Bop Princess Logo.svg"
+              src="/2000s Bop Princess Cover Card.svg"
               alt="Bracket Challenge"
               fill
               className="object-contain"
