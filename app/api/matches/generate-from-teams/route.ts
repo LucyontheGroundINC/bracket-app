@@ -17,7 +17,7 @@ type TeamRow = {
 };
 
 type MatchInsert = {
-  tournament_id?: number;
+  tournament_id: number;
   region: string;
   round: number;
   match_order: number;
@@ -32,11 +32,6 @@ function getErrorMessage(e: unknown) {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
   return "Unknown error";
-}
-
-function isMissingColumnError(message: string, column: string) {
-  const m = message.toLowerCase();
-  return m.includes("column") && m.includes(column.toLowerCase()) && m.includes("schema cache");
 }
 
 function getSupabaseAdmin(): { client: SupabaseClient; projectRef: string | null } {
@@ -309,25 +304,13 @@ export async function POST(req: Request) {
       }
     );
 
-    let usedLegacyMode = false;
-    let { error: insertErr } = await supabaseAdmin.from("matches").insert(inserts);
-
-    if (insertErr && isMissingColumnError(insertErr.message, "tournament_id")) {
-      const legacyPayload = inserts.map(({ tournament_id: _ignore, ...rest }) => rest);
-      const legacyInsert = await supabaseAdmin.from("matches").insert(legacyPayload);
-      insertErr = legacyInsert.error;
-      usedLegacyMode = !legacyInsert.error;
-    }
+    const { error: insertErr } = await supabaseAdmin.from("matches").insert(inserts);
 
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
     return NextResponse.json({
       ok: true,
       inserted: inserts.length,
-      legacyMode: usedLegacyMode,
-      warning: usedLegacyMode
-        ? "matches.tournament_id column not found; generated matches without tournament scoping."
-        : null,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });

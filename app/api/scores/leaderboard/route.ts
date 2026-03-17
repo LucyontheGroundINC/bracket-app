@@ -25,11 +25,6 @@ type UserRow = {
   avatar_url: string | null;
 };
 
-function isMissingTournamentColumnError(message: string) {
-  const m = message.toLowerCase();
-  return m.includes("tournament_id") && m.includes("schema cache");
-}
-
 // GET /api/scores/leaderboard?tournamentId=...
 export async function GET(req: Request) {
   try {
@@ -61,17 +56,7 @@ export async function GET(req: Request) {
       matchesQuery = matchesQuery.eq("tournament_id", tournamentId);
     }
 
-    let { data: matches, error: matchesError } = await matchesQuery;
-
-    if (matchesError && tournamentId !== null && isMissingTournamentColumnError(matchesError.message)) {
-      const fallback = await supabaseAdmin
-        .from("matches")
-        .select("id, round, winner")
-        .not("winner", "is", null);
-
-      matches = fallback.data;
-      matchesError = fallback.error;
-    }
+    const { data: matches, error: matchesError } = await matchesQuery;
 
     if (matchesError) {
       console.error("[leaderboard] Error loading matches:", matchesError);
