@@ -5,10 +5,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 // GET /api/teams?tournamentId=1
 export async function GET(req: Request) {
   try {
+    await db.execute(sql`alter table public.teams add column if not exists region varchar(24)`);
+
     const { searchParams } = new URL(req.url);
     const tid = searchParams.get("tournamentId");
 
@@ -83,10 +86,13 @@ export async function POST(req: Request) {
         );
       }
 
-      const values = (body.teams as Array<{ name: string; seed?: number | null }>)
+      await db.execute(sql`alter table public.teams add column if not exists region varchar(24)`);
+
+      const values = (body.teams as Array<{ name: string; seed?: number | null; region?: string | null }>)
         .filter((t) => t?.name && typeof t.name === "string")
         .map((t) => ({
           name: t.name.trim(),
+          region: t.region ? String(t.region).trim() : null,
           seed: t.seed ?? null,
           tournamentId,
         }));
@@ -124,10 +130,13 @@ export async function POST(req: Request) {
       );
     }
 
+    await db.execute(sql`alter table public.teams add column if not exists region varchar(24)`);
+
     const [row] = await db
       .insert(teams)
       .values({
         name: String(body.name).trim(),
+        region: body.region ? String(body.region).trim() : null,
         seed: body.seed ?? null,
         tournamentId,
       })

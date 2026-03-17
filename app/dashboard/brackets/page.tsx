@@ -70,6 +70,11 @@ function errorMessage(e: unknown): string {
   return 'Unknown error';
 }
 
+function isMissingTournamentColumnError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('tournament_id') && m.includes('schema cache');
+}
+
 // ------------------ Component ------------------
 export default function BracketPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -171,13 +176,25 @@ export default function BracketPage() {
         setIsReadOnlyView(readOnly);
 
         // Matches
-        const { data: matchData, error: matchError } = await supabase
+        let { data: matchData, error: matchError } = await supabase
           .from('matches')
           .select('*')
           .eq('tournament_id', activeTournamentId)
           .order('region', { ascending: true })
           .order('round', { ascending: true })
           .order('match_order', { ascending: true });
+
+        if (matchError && isMissingTournamentColumnError(matchError.message)) {
+          const fallback = await supabase
+            .from('matches')
+            .select('*')
+            .order('region', { ascending: true })
+            .order('round', { ascending: true })
+            .order('match_order', { ascending: true });
+
+          matchData = fallback.data;
+          matchError = fallback.error;
+        }
 
         if (matchError) {
           console.error('Error loading matches:', matchError.message);

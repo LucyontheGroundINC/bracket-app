@@ -17,7 +17,7 @@ type TeamRow = {
 };
 
 type MatchInsert = {
-  tournament_id: number;
+  tournament_id?: number;
   region: string;
   round: number;
   match_order: number;
@@ -32,6 +32,11 @@ function getErrorMessage(e: unknown) {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
   return "Unknown error";
+}
+
+function isMissingColumnError(message: string, column: string) {
+  const m = message.toLowerCase();
+  return m.includes("column") && m.includes(column.toLowerCase()) && m.includes("schema cache");
 }
 
 function getSupabaseAdmin(): { client: SupabaseClient; projectRef: string | null } {
@@ -173,6 +178,15 @@ export async function POST(req: Request) {
       });
     }
 
+    const { error: tournamentProbeError } = await supabaseAdmin
+      .from("matches")
+      .select("tournament_id")
+      .limit(1);
+
+    const matchesHasTournamentId = !(
+      tournamentProbeError && isMissingColumnError(tournamentProbeError.message, "tournament_id")
+    );
+
     // Wipe matches first (your bracket UI reads only this table)
     if (wipeAll) {
       const { error: wipeErr } = await supabaseAdmin
@@ -211,7 +225,7 @@ export async function POST(req: Request) {
         const b = chunk[bIdx];
 
         inserts.push({
-          tournament_id: tournamentId,
+          tournament_id: matchesHasTournamentId ? tournamentId : undefined,
           region,
           round: 1,
           match_order: i + 1,
@@ -226,7 +240,7 @@ export async function POST(req: Request) {
       // Round 2 (4 matches placeholders)
       for (let i = 1; i <= 4; i++) {
         inserts.push({
-          tournament_id: tournamentId,
+          tournament_id: matchesHasTournamentId ? tournamentId : undefined,
           region,
           round: 2,
           match_order: i,
@@ -241,7 +255,7 @@ export async function POST(req: Request) {
       // Round 3 (2 matches placeholders)
       for (let i = 1; i <= 2; i++) {
         inserts.push({
-          tournament_id: tournamentId,
+          tournament_id: matchesHasTournamentId ? tournamentId : undefined,
           region,
           round: 3,
           match_order: i,
@@ -255,7 +269,7 @@ export async function POST(req: Request) {
 
       // Round 4 (1 match placeholder) = region champion
       inserts.push({
-        tournament_id: tournamentId,
+        tournament_id: matchesHasTournamentId ? tournamentId : undefined,
         region,
         round: 4,
         match_order: 1,
@@ -270,7 +284,7 @@ export async function POST(req: Request) {
     // Final Four region (round 5 semis, round 6 championship)
     inserts.push(
       {
-        tournament_id: tournamentId,
+        tournament_id: matchesHasTournamentId ? tournamentId : undefined,
         region: "Final Four",
         round: 5,
         match_order: 1,
@@ -281,7 +295,7 @@ export async function POST(req: Request) {
         winner: null,
       },
       {
-        tournament_id: tournamentId,
+        tournament_id: matchesHasTournamentId ? tournamentId : undefined,
         region: "Final Four",
         round: 5,
         match_order: 2,
@@ -292,7 +306,7 @@ export async function POST(req: Request) {
         winner: null,
       },
       {
-        tournament_id: tournamentId,
+        tournament_id: matchesHasTournamentId ? tournamentId : undefined,
         region: "Final Four",
         round: 6,
         match_order: 1,
@@ -304,11 +318,22 @@ export async function POST(req: Request) {
       }
     );
 
-    const { error: insertErr } = await supabaseAdmin.from("matches").insert(inserts);
+    const payload = matchesHasTournamentId
+      ? inserts
+      : inserts.map(({ tournament_id: _ignore, ...rest }) => rest);
+
+    const { error: insertErr } = await supabaseAdmin.from("matches").insert(payload);
 
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, inserted: inserts.length });
+    return NextResponse.json({
+      ok: true,
+      inserted: inserts.length,
+      legacyMode: !matchesHasTournamentId,
+      warning: matchesHasTournamentId
+        ? null
+        : "matches.tournament_id column not found; generated matches without tournament scoping.",
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
   }

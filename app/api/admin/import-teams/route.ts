@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 type TeamImportRow = {
   line: number;
-  region: "North" | "East" | "South" | "West";
+  region: "East" | "South" | "West" | "Midwest";
   seed: number;
   name: string;
 };
@@ -53,11 +53,11 @@ function parseSeed(raw: string, line: number): number {
 
 function parseRegion(raw: string, line: number): TeamImportRow["region"] {
   const normalized = raw.trim().toLowerCase();
-  if (normalized === "north") return "North";
+  if (normalized === "north" || normalized === "midwest") return "Midwest";
   if (normalized === "east") return "East";
   if (normalized === "south") return "South";
   if (normalized === "west") return "West";
-  throw new Error(`Line ${line}: Region must be one of North, East, South, West.`);
+  throw new Error(`Line ${line}: Region must be one of East, South, West, Midwest (North accepted as alias).`);
 }
 
 function normalizeHeaderCell(value: string): string {
@@ -155,7 +155,7 @@ function parseCsv(csv: string): { rows: TeamImportRow[]; errors: string[] } {
       return acc;
     }, {});
 
-    for (const region of ["North", "East", "South", "West"] as const) {
+    for (const region of ["East", "West", "South", "Midwest"] as const) {
       if ((byRegion[region] ?? 0) !== 16) {
         errors.push(`Expected 16 teams in ${region}. Found ${byRegion[region] ?? 0}.`);
       }

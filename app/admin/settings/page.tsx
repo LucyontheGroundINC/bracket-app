@@ -677,7 +677,8 @@ export default function AdminSettingsPage() {
   const groupedTeamsByRegion = useMemo(() => {
     const groups: Record<string, TeamRow[]> = {};
     for (const t of teams) {
-      const region = t.region || "Unknown";
+      const rawRegion = (t.region || "Unknown").trim();
+      const region = rawRegion.toLowerCase() === "north" ? "Midwest" : rawRegion;
       if (!groups[region]) groups[region] = [];
       groups[region].push(t);
     }
@@ -1005,7 +1006,7 @@ export default function AdminSettingsPage() {
                   <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Bulk Import Teams (CSV)</h2>
                   <p className="text-xs text-[#0A2041]/70 mb-3">
                     Paste 64 team rows using <code>Region,Seed,Name</code> (header row optional).
-                    Regions accepted: North, East, South, West.
+                    Regions accepted: East, West, South, Midwest (North also works as an alias).
                   </p>
 
                   <div className="space-y-3">
@@ -1058,8 +1059,8 @@ export default function AdminSettingsPage() {
                       onChange={(e) => setTeamsCsv(e.target.value)}
                       placeholder={[
                         "Region,Seed,Name",
-                        "North,1,Team A",
-                        "North,16,Team B",
+                        "Midwest,1,Team A",
+                        "Midwest,16,Team B",
                         "... (64 team rows total)",
                       ].join("\n")}
                       className="w-full min-h-[180px] rounded-xl border border-[#F5B8B0] bg-[#FDF3EE] p-3 text-[12px] font-mono"

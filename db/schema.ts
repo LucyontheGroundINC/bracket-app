@@ -43,6 +43,7 @@ export const tournaments = pgTable("tournaments", {
 export const teams = pgTable("teams", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
+  region: varchar("region", { length: 24 }),
   seed: integer("seed"),
   tournamentId: integer("tournament_id").notNull().references(() => tournaments.id),
 }, (t) => ({
