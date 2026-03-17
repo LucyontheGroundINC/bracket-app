@@ -4,6 +4,8 @@ export const revalidate = 0;
 
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { db } from "@/db/client";
+import { sql } from "drizzle-orm";
 
 const REGIONS = ["East", "West", "South", "Midwest"] as const;
 type Region = (typeof REGIONS)[number];
@@ -130,6 +132,16 @@ export async function POST(req: Request) {
     if (!Number.isFinite(tournamentId)) {
       return NextResponse.json({ error: "tournamentId must be a number" }, { status: 400 });
     }
+
+    await db.execute(sql`
+      ALTER TABLE public.matches
+      ADD COLUMN IF NOT EXISTS tournament_id integer
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS matches_tournament_region_round_order_idx
+      ON public.matches (tournament_id, region, round, match_order)
+    `);
 
     const { client: supabaseAdmin } = getSupabaseAdmin();
 
