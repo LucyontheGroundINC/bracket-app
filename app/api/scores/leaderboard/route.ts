@@ -26,7 +26,7 @@ type UserRow = {
 };
 
 // GET /api/scores/leaderboard?tournamentId=...
-export async function GET() {
+export async function GET(req: Request) {
   try {
     if (!supabaseAdmin) {
       console.error("[leaderboard] supabaseAdmin is not configured");
@@ -39,15 +39,24 @@ export async function GET() {
       );
     }
 
-    // If you later scope by tournamentId, parse it here.
-    // const { searchParams } = new URL(req.url);
-    // const tournamentId = searchParams.get("tournamentId");
+    const { searchParams } = new URL(req.url);
+    const tournamentIdParam = searchParams.get("tournamentId");
+    const tournamentId =
+      tournamentIdParam && Number.isFinite(Number(tournamentIdParam))
+        ? Number(tournamentIdParam)
+        : null;
 
     // 1) Load matches that have winners set
-    const { data: matches, error: matchesError } = await supabaseAdmin
+    let matchesQuery = supabaseAdmin
       .from("matches")
       .select("id, round, winner")
       .not("winner", "is", null);
+
+    if (tournamentId !== null) {
+      matchesQuery = matchesQuery.eq("tournament_id", tournamentId);
+    }
+
+    const { data: matches, error: matchesError } = await matchesQuery;
 
     if (matchesError) {
       console.error("[leaderboard] Error loading matches:", matchesError);

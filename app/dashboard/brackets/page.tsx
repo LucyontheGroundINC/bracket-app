@@ -8,6 +8,7 @@ import Image from 'next/image';
 // ------------------ Types ------------------
 type Match = {
   id: string;
+  tournament_id: number | null;
   region: string | null;
   round: number;
   match_order: number;
@@ -134,6 +135,25 @@ export default function BracketPage() {
         const authEmail = authUser?.email ?? null;
         setUserEmail(authEmail);
 
+        // Active tournament (Bracket Challenge should always use current contest)
+        const activeTournamentRes = await fetch('/api/tournaments/active', {
+          cache: 'no-store',
+        });
+        const activeTournament = activeTournamentRes.ok
+          ? ((await activeTournamentRes.json()) as { id?: number } | null)
+          : null;
+        const activeTournamentId =
+          activeTournament && typeof activeTournament.id === 'number'
+            ? activeTournament.id
+            : null;
+
+        if (!activeTournamentId) {
+          console.warn('[BracketPage] No active tournament found; skipping match/pick load.');
+          setMatches([]);
+          setPicks({});
+          return;
+        }
+
         // Read ?u=<userId> from the URL (shared view)
         let viewUserId: string | null = null;
         if (typeof window !== 'undefined') {
@@ -154,6 +174,7 @@ export default function BracketPage() {
         const { data: matchData, error: matchError } = await supabase
           .from('matches')
           .select('*')
+          .eq('tournament_id', activeTournamentId)
           .order('region', { ascending: true })
           .order('round', { ascending: true })
           .order('match_order', { ascending: true });
@@ -165,12 +186,15 @@ export default function BracketPage() {
         const matchRows = (Array.isArray(matchData) ? matchData : []) as unknown as Match[];
         setMatches(matchRows);
 
+        const activeMatchIds = matchRows.map((m) => m.id).filter(Boolean);
+
         // Picks for the target user (owner or shared user)
-        if (targetUserId) {
+        if (targetUserId && activeMatchIds.length > 0) {
           const { data: picksData, error: picksError } = await supabase
             .from('picks')
             .select('match_id, chosen_winner')
-            .eq('user_id', targetUserId);
+            .eq('user_id', targetUserId)
+            .in('match_id', activeMatchIds);
 
           if (picksError) {
             console.error('Error loading picks:', picksError.message);
