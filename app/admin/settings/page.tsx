@@ -76,6 +76,7 @@ export default function AdminSettingsPage() {
   const [maintenanceStatus, setMaintenanceStatus] = useState<string>("");
   const [schemaStatus, setSchemaStatus] = useState<SchemaStatus | null>(null);
   const [loadingSchemaStatus, setLoadingSchemaStatus] = useState(false);
+  const [repairingSchema, setRepairingSchema] = useState(false);
 
   // CSV Importer (Games)
   const [gamesCsv, setGamesCsv] = useState<string>("");
@@ -707,6 +708,43 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function handleRepairMatchesSchema() {
+    if (!selectedTournamentId) {
+      alert("Select a tournament first.");
+      return;
+    }
+
+    const sure = window.confirm(
+      "Repair matches schema now?\n\nThis will add matches.tournament_id and backfill existing null rows to the selected tournament."
+    );
+    if (!sure) return;
+
+    setRepairingSchema(true);
+    setMaintenanceStatus("Repairing matches schema…");
+    try {
+      const res = await fetch("/api/admin/schema-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tournamentId: selectedTournamentId }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMaintenanceStatus(`Schema repair failed: ${json?.error ?? "Unknown error"}`);
+        return;
+      }
+
+      setMaintenanceStatus("Schema repair completed ✅");
+      await refreshSchemaStatus();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setMaintenanceStatus(`Schema repair failed: ${message}`);
+    } finally {
+      setRepairingSchema(false);
+    }
+  }
+
   // ------------------ UI helpers ------------------
   const tabButtonClasses = (key: TabKey) =>
     [
@@ -1173,13 +1211,28 @@ export default function AdminSettingsPage() {
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={refreshSchemaStatus}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/80 border border-[#F5B8B0] hover:bg-white"
-                    >
-                      {loadingSchemaStatus ? "Checking…" : "Refresh"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={refreshSchemaStatus}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/80 border border-[#F5B8B0] hover:bg-white"
+                      >
+                        {loadingSchemaStatus ? "Checking…" : "Refresh"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRepairMatchesSchema}
+                        disabled={!selectedTournamentId || repairingSchema}
+                        className={[
+                          "px-3 py-2 rounded-lg text-xs font-semibold border",
+                          selectedTournamentId
+                            ? "bg-[#CA4C4C] text-[#F8F5EE] border-[#CA4C4C] hover:bg-[#b23a3a]"
+                            : "bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed",
+                        ].join(" ")}
+                      >
+                        {repairingSchema ? "Repairing…" : "Repair"}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-3 text-xs text-[#0A2041]/80 space-y-1">
