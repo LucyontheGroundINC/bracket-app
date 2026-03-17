@@ -22,6 +22,17 @@ type TeamRow = {
   region: string | null;
 };
 
+type SchemaStatus = {
+  ok: boolean;
+  hasTournamentIdColumn: boolean;
+  probeError: string | null;
+  allMatchesCount: number;
+  allMatchesError: string | null;
+  selectedTournamentId: number | null;
+  selectedTournamentMatchCount: number | null;
+  selectedTournamentError: string | null;
+};
+
 type TabKey = "overview" | "tournaments" | "teams" | "maintenance";
 
 export default function AdminSettingsPage() {
@@ -63,6 +74,8 @@ export default function AdminSettingsPage() {
 
   // Maintenance / status
   const [maintenanceStatus, setMaintenanceStatus] = useState<string>("");
+  const [schemaStatus, setSchemaStatus] = useState<SchemaStatus | null>(null);
+  const [loadingSchemaStatus, setLoadingSchemaStatus] = useState(false);
 
   // CSV Importer (Games)
   const [gamesCsv, setGamesCsv] = useState<string>("");
@@ -345,6 +358,13 @@ export default function AdminSettingsPage() {
     refreshTournaments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "maintenance") {
+      refreshSchemaStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedTournamentId]);
 
   // ------------------ Load lock settings when tournament changes ------------------
   useEffect(() => {
@@ -661,6 +681,29 @@ export default function AdminSettingsPage() {
     } catch (err) {
       console.error(err);
       setMaintenanceStatus("Error resetting your picks.");
+    }
+  }
+
+  async function refreshSchemaStatus() {
+    setLoadingSchemaStatus(true);
+    try {
+      const query = selectedTournamentId ? `?tournamentId=${selectedTournamentId}` : "";
+      const res = await fetch(`/api/admin/schema-status${query}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setSchemaStatus(null);
+        setMaintenanceStatus(`Schema status check failed: ${json?.error ?? "Unknown error"}`);
+        return;
+      }
+
+      setSchemaStatus(json as SchemaStatus);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setSchemaStatus(null);
+      setMaintenanceStatus(`Schema status check failed: ${message}`);
+    } finally {
+      setLoadingSchemaStatus(false);
     }
   }
 
@@ -1121,6 +1164,41 @@ export default function AdminSettingsPage() {
 
             {activeTab === "maintenance" ? (
               <section className="space-y-5">
+                <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Schema Status</h2>
+                      <p className="text-xs text-[#0A2041]/70">
+                        Quick health check for tournament-scoped matches.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={refreshSchemaStatus}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/80 border border-[#F5B8B0] hover:bg-white"
+                    >
+                      {loadingSchemaStatus ? "Checking…" : "Refresh"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 text-xs text-[#0A2041]/80 space-y-1">
+                    <p>
+                      matches.tournament_id: {schemaStatus?.hasTournamentIdColumn ? "✅ present" : "❌ missing"}
+                    </p>
+                    <p>Total matches: {schemaStatus?.allMatchesCount ?? "—"}</p>
+                    <p>Selected tournament matches: {schemaStatus?.selectedTournamentMatchCount ?? "—"}</p>
+                    {schemaStatus?.probeError ? (
+                      <p className="text-[#CA4C4C]">Probe error: {schemaStatus.probeError}</p>
+                    ) : null}
+                    {schemaStatus?.selectedTournamentError ? (
+                      <p className="text-[#CA4C4C]">
+                        Selected tournament query error: {schemaStatus.selectedTournamentError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
                 {/* Maintenance & Utilities */}
                 <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                   <h2 className="text-sm font-semibold mb-3 text-[#CA4C4C]">Maintenance & Utilities</h2>
