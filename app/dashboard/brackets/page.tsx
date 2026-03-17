@@ -70,11 +70,6 @@ function errorMessage(e: unknown): string {
   return 'Unknown error';
 }
 
-function isMissingTournamentColumnError(message: string): boolean {
-  const m = message.toLowerCase();
-  return m.includes('tournament_id') && m.includes('schema cache');
-}
-
 // ------------------ Component ------------------
 export default function BracketPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -152,14 +147,14 @@ export default function BracketPage() {
             ? activeTournament.id
             : null;
 
-        const loadAllMatches = async () => {
-          const fallback = await supabase
-            .from('matches')
-            .select('*')
-            .order('region', { ascending: true })
-            .order('round', { ascending: true })
-            .order('match_order', { ascending: true });
-          return fallback;
+        const loadMatchesFromApi = async (tournamentId: number | null) => {
+          const query = tournamentId ? `?tournamentId=${tournamentId}` : '';
+          const res = await fetch(`/api/matches${query}`, { cache: 'no-store' });
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            return { data: null as unknown[] | null, error: (json?.error as string) ?? 'Failed to load matches' };
+          }
+          return { data: Array.isArray(json) ? (json as unknown[]) : [], error: null as string | null };
         };
 
         // Read ?u=<userId> from the URL (shared view)
@@ -179,44 +174,17 @@ export default function BracketPage() {
         setIsReadOnlyView(readOnly);
 
         // Matches
-        let matchData: unknown[] | null = null;
-        let matchError: { message: string } | null = null;
-
-        if (activeTournamentId) {
-          const scoped = await supabase
-            .from('matches')
-            .select('*')
-            .eq('tournament_id', activeTournamentId)
-            .order('region', { ascending: true })
-            .order('round', { ascending: true })
-            .order('match_order', { ascending: true });
-
-          matchData = scoped.data as unknown[] | null;
-          matchError = scoped.error as { message: string } | null;
-
-          if (matchError && isMissingTournamentColumnError(matchError.message)) {
-            const fallback = await loadAllMatches();
-            matchData = fallback.data as unknown[] | null;
-            matchError = fallback.error as { message: string } | null;
-          }
-
-          if (!matchError && (!Array.isArray(matchData) || matchData.length === 0)) {
-            const fallback = await loadAllMatches();
-            matchData = fallback.data as unknown[] | null;
-            matchError = fallback.error as { message: string } | null;
-          }
-        } else {
-          console.warn('[BracketPage] No active tournament found; falling back to available matches.');
-          const fallback = await loadAllMatches();
-          matchData = fallback.data as unknown[] | null;
-          matchError = fallback.error as { message: string } | null;
+        if (!activeTournamentId) {
+          console.warn('[BracketPage] No active tournament found; loading available matches.');
         }
 
-        if (matchError) {
-          console.error('Error loading matches:', matchError.message);
+        const matchesRes = await loadMatchesFromApi(activeTournamentId);
+
+        if (matchesRes.error) {
+          console.error('Error loading matches:', matchesRes.error);
         }
 
-        const matchRows = (Array.isArray(matchData) ? matchData : []) as unknown as Match[];
+        const matchRows = (Array.isArray(matchesRes.data) ? matchesRes.data : []) as unknown as Match[];
         setMatches(matchRows);
 
         const activeMatchIds = matchRows.map((m) => m.id).filter(Boolean);
