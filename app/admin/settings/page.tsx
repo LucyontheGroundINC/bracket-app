@@ -54,6 +54,7 @@ export default function AdminSettingsPage() {
   // Teams list
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
+  const [generatingBracket, setGeneratingBracket] = useState(false);
 
   // CSV Importer (Teams)
   const [teamsCsv, setTeamsCsv] = useState<string>("");
@@ -247,6 +248,44 @@ export default function AdminSettingsPage() {
       setTeams(Array.isArray(refreshedJson) ? refreshedJson : []);
     } finally {
       setTeamsImporting(false);
+    }
+  }
+
+  async function handleGenerateBracketFromTeams() {
+    if (!selectedTournamentId) {
+      alert("Select a tournament first.");
+      return;
+    }
+
+    const sure = window.confirm(
+      "Generate bracket matches from teams?\n\nThis will rebuild matches for this tournament."
+    );
+    if (!sure) return;
+
+    setGeneratingBracket(true);
+    setTeamsImportStatus("Generating bracket matches…");
+
+    try {
+      const res = await fetch("/api/matches/generate-from-teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId: selectedTournamentId,
+          mode: "seeded",
+          wipeAll: true,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setTeamsImportStatus(`Generate failed: ${json?.error ?? json?.message ?? "Unknown error"}`);
+        return;
+      }
+
+      setTeamsImportStatus(`✅ Bracket generated. Matches inserted: ${json?.inserted ?? 0}`);
+    } finally {
+      setGeneratingBracket(false);
     }
   }
 
@@ -997,6 +1036,20 @@ export default function AdminSettingsPage() {
                         ].join(" ")}
                       >
                         {teamsImporting ? "Importing…" : "Import Teams"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateBracketFromTeams}
+                        disabled={!selectedTournamentId || generatingBracket || teamsImporting}
+                        className={[
+                          "inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold border",
+                          selectedTournamentId
+                            ? "bg-[#0A2041] text-[#F8F5EE] hover:opacity-90 border-[#0A2041]"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300",
+                        ].join(" ")}
+                      >
+                        {generatingBracket ? "Generating…" : "Generate Bracket Matches"}
                       </button>
                     </div>
 

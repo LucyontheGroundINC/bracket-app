@@ -12,10 +12,12 @@ type TeamRow = {
   id: number;
   name: string;
   seed: number | null;
+  region: string | null;
   tournament_id: number;
 };
 
 type MatchInsert = {
+  tournament_id: number;
   region: string;
   round: number;
   match_order: number;
@@ -134,7 +136,7 @@ export async function POST(req: Request) {
     // Load teams for this tournament
     const { data: teamsRaw, error: teamErr } = await supabaseAdmin
       .from("teams")
-      .select("id,name,seed,tournament_id")
+      .select("id,name,seed,region,tournament_id")
       .eq("tournament_id", tournamentId);
 
     if (teamErr) return NextResponse.json({ error: teamErr.message }, { status: 500 });
@@ -209,6 +211,7 @@ export async function POST(req: Request) {
         const b = chunk[bIdx];
 
         inserts.push({
+          tournament_id: tournamentId,
           region,
           round: 1,
           match_order: i + 1,
@@ -223,6 +226,7 @@ export async function POST(req: Request) {
       // Round 2 (4 matches placeholders)
       for (let i = 1; i <= 4; i++) {
         inserts.push({
+          tournament_id: tournamentId,
           region,
           round: 2,
           match_order: i,
@@ -237,6 +241,7 @@ export async function POST(req: Request) {
       // Round 3 (2 matches placeholders)
       for (let i = 1; i <= 2; i++) {
         inserts.push({
+          tournament_id: tournamentId,
           region,
           round: 3,
           match_order: i,
@@ -250,6 +255,7 @@ export async function POST(req: Request) {
 
       // Round 4 (1 match placeholder) = region champion
       inserts.push({
+        tournament_id: tournamentId,
         region,
         round: 4,
         match_order: 1,
@@ -264,6 +270,7 @@ export async function POST(req: Request) {
     // Final Four region (round 5 semis, round 6 championship)
     inserts.push(
       {
+        tournament_id: tournamentId,
         region: "Final Four",
         round: 5,
         match_order: 1,
@@ -274,6 +281,7 @@ export async function POST(req: Request) {
         winner: null,
       },
       {
+        tournament_id: tournamentId,
         region: "Final Four",
         round: 5,
         match_order: 2,
@@ -284,6 +292,7 @@ export async function POST(req: Request) {
         winner: null,
       },
       {
+        tournament_id: tournamentId,
         region: "Final Four",
         round: 6,
         match_order: 1,
