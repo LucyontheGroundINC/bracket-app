@@ -55,6 +55,11 @@ export default function AdminSettingsPage() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
 
+  // CSV Importer (Teams)
+  const [teamsCsv, setTeamsCsv] = useState<string>("");
+  const [teamsImportStatus, setTeamsImportStatus] = useState<string>("");
+  const [teamsImporting, setTeamsImporting] = useState(false);
+
   // Maintenance / status
   const [maintenanceStatus, setMaintenanceStatus] = useState<string>("");
 
@@ -154,6 +159,94 @@ export default function AdminSettingsPage() {
       );
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleValidateTeamsCsv() {
+    if (!selectedTournamentId) {
+      alert("Select a tournament first.");
+      return;
+    }
+    if (!teamsCsv.trim()) {
+      alert("Paste CSV first.");
+      return;
+    }
+
+    setTeamsImportStatus("Validating teams CSV…");
+
+    const res = await fetch("/api/admin/import-teams", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tournamentId: selectedTournamentId,
+        csv: teamsCsv,
+        dryRun: true,
+      }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const errors = Array.isArray(json?.errors) ? json.errors : [];
+      const summary = errors.length
+        ? `${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ""}`
+        : json?.error ?? json?.message ?? "Unknown error";
+      setTeamsImportStatus(`Validation failed: ${summary}`);
+      return;
+    }
+
+    setTeamsImportStatus(`✅ Valid. Parsed rows: ${json?.parsedRows ?? 0}`);
+  }
+
+  async function handleImportTeamsCsv() {
+    if (!selectedTournamentId) {
+      alert("Select a tournament first.");
+      return;
+    }
+    if (!teamsCsv.trim()) {
+      alert("Paste CSV first.");
+      return;
+    }
+
+    const sure = window.confirm(
+      "Import teams from CSV?\n\nThis will upsert Name/Seed/Region rows for the selected tournament."
+    );
+    if (!sure) return;
+
+    setTeamsImporting(true);
+    setTeamsImportStatus("Importing teams…");
+
+    try {
+      const res = await fetch("/api/admin/import-teams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournamentId: selectedTournamentId,
+          csv: teamsCsv,
+          dryRun: false,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const errors = Array.isArray(json?.errors) ? json.errors : [];
+        const summary = errors.length
+          ? `${errors[0]}${errors.length > 1 ? ` (+${errors.length - 1} more)` : ""}`
+          : json?.error ?? json?.message ?? "Unknown error";
+        setTeamsImportStatus(`Import failed: ${summary}`);
+        return;
+      }
+
+      setTeamsImportStatus(`✅ Imported. Rows upserted: ${json?.rowsUpserted ?? 0}`);
+
+      const refreshed = await fetch(`/api/teams?tournamentId=${selectedTournamentId}`, {
+        cache: "no-store",
+      });
+      const refreshedJson = await refreshed.json().catch(() => []);
+      setTeams(Array.isArray(refreshedJson) ? refreshedJson : []);
+    } finally {
+      setTeamsImporting(false);
     }
   }
 
@@ -867,6 +960,62 @@ export default function AdminSettingsPage() {
                       </p>
                     ) : null}
                   </form>
+                </div>
+
+                <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
+                  <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Bulk Import Teams (CSV)</h2>
+                  <p className="text-xs text-[#0A2041]/70 mb-3">
+                    Paste 64 rows with columns <code>Region,Seed,Name</code> (regions: North, East,
+                    South, West).
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <button
+                        type="button"
+                        onClick={handleValidateTeamsCsv}
+                        disabled={!selectedTournamentId || !teamsCsv.trim() || teamsImporting}
+                        className={[
+                          "inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold border",
+                          selectedTournamentId && teamsCsv.trim()
+                            ? "bg-[#A7C4E7] text-[#0A2041] hover:bg-[#8eaed0] border-[#A7C4E7]"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300",
+                        ].join(" ")}
+                      >
+                        Validate
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleImportTeamsCsv}
+                        disabled={!selectedTournamentId || !teamsCsv.trim() || teamsImporting}
+                        className={[
+                          "inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold border",
+                          selectedTournamentId && teamsCsv.trim()
+                            ? "bg-[#CA4C4C] text-[#F8F5EE] hover:bg-[#b23a3a] border-[#CA4C4C]"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-300",
+                        ].join(" ")}
+                      >
+                        {teamsImporting ? "Importing…" : "Import Teams"}
+                      </button>
+                    </div>
+
+                    <textarea
+                      value={teamsCsv}
+                      onChange={(e) => setTeamsCsv(e.target.value)}
+                      placeholder={[
+                        "Region,Seed,Name",
+                        "North,1,Team A",
+                        "North,16,Team B",
+                        "... (64 rows total)",
+                      ].join("\n")}
+                      className="w-full min-h-[180px] rounded-xl border border-[#F5B8B0] bg-[#FDF3EE] p-3 text-[12px] font-mono"
+                    />
+
+                    {teamsImportStatus ? (
+                      <p className="text-xs text-[#0A2041]/80">{teamsImportStatus}</p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
