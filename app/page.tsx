@@ -52,10 +52,10 @@ export default function HomePage() {
             style={{ boxShadow: '0 0 40px 10px #FEE689' }}
           >
             <Image
-              src="/Copy of March Madness 2026 (750 x 1000 px).svg"
+              src="/Copy of March Madness 2026 (750 x 1000 px) (800 x 1000 px).svg"
               alt="Bracket Challenge"
               fill
-              className="object-contain"
+              className="object-cover"
               priority
             />
           </Link>
