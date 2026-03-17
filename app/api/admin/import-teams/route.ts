@@ -68,44 +68,53 @@ function normalizeHeaderCell(value: string): string {
     .replace(/_/g, "");
 }
 
+function findColumns(cells: string[]): { regionIdx: number; seedIdx: number; nameIdx: number } {
+  const normalized = cells.map(normalizeHeaderCell);
+
+  const indexOfAny = (candidates: string[]) =>
+    candidates.map((name) => normalized.indexOf(name)).find((idx) => idx >= 0) ?? -1;
+
+  const regionIdx = indexOfAny(["region", "postregion", "regoion"]);
+  const seedIdx = indexOfAny(["seed"]);
+  const nameIdx = indexOfAny(["name", "teamname", "title"]);
+
+  return { regionIdx, seedIdx, nameIdx };
+}
+
 function parseCsv(csv: string): { rows: TeamImportRow[]; errors: string[] } {
   const lines = csv
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
-  if (lines.length < 2) {
+  if (lines.length < 1) {
     return {
       rows: [],
-      errors: ["CSV must include a header row and at least 1 data row."],
+      errors: ["CSV must include at least 1 data row."],
     };
   }
 
-  const header = splitCsvLine(lines[0]).map(normalizeHeaderCell);
+  let startLine = 0;
+  let regionIdx = 0;
+  let seedIdx = 1;
+  let nameIdx = 2;
 
-  const indexOfAny = (candidates: string[]) =>
-    candidates.map((name) => header.indexOf(name)).find((idx) => idx >= 0) ?? -1;
+  // If first line is a header, map by header names. Otherwise assume data order Region,Seed,Name.
+  const firstLineCells = splitCsvLine(lines[0]);
+  const mapped = findColumns(firstLineCells);
+  const hasHeader = mapped.regionIdx >= 0 && mapped.seedIdx >= 0 && mapped.nameIdx >= 0;
 
-  const regionIdx = indexOfAny(["region", "postregion"]);
-  const seedIdx = indexOfAny(["seed"]);
-  const nameIdx = indexOfAny(["name", "teamname", "title"]);
-
-  const missing: string[] = [];
-  if (regionIdx < 0) missing.push("Region");
-  if (seedIdx < 0) missing.push("Seed");
-  if (nameIdx < 0) missing.push("Name");
-
-  if (missing.length) {
-    return {
-      rows: [],
-      errors: [`Missing required column(s): ${missing.join(", ")}`],
-    };
+  if (hasHeader) {
+    regionIdx = mapped.regionIdx;
+    seedIdx = mapped.seedIdx;
+    nameIdx = mapped.nameIdx;
+    startLine = 1;
   }
 
   const rows: TeamImportRow[] = [];
   const errors: string[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = startLine; i < lines.length; i++) {
     const lineNo = i + 1;
 
     try {
@@ -132,7 +141,28 @@ function parseCsv(csv: string): { rows: TeamImportRow[]; errors: string[] } {
     }
   }
 
-  if (rows.length !== 64) {
+  if (rows.length < 64) {
+    errors.push(`Expected at least 64 data rows. Found ${rows.length}.`);
+  }
+
+  if (rows.length > 64) {
+    errors.push(`Expected 64 data rows. Found ${rows.length}.`);
+  }
+
+  if (rows.length === 64) {
+    const byRegion = rows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.region] = (acc[row.region] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    for (const region of ["North", "East", "South", "West"] as const) {
+      if ((byRegion[region] ?? 0) !== 16) {
+        errors.push(`Expected 16 teams in ${region}. Found ${byRegion[region] ?? 0}.`);
+      }
+    }
+  }
+
+  if (errors.length === 0 && rows.length !== 64) {
     errors.push(`Expected 64 data rows. Found ${rows.length}.`);
   }
 
@@ -173,6 +203,12 @@ export async function POST(req: Request) {
       });
     }
 
+    // Self-heal schema assumptions for importer safety.
+    await db.execute(sql`alter table public.teams add column if not exists region varchar(24)`);
+    await db.execute(
+      sql`create unique index if not exists teams_tournament_name_uidx on public.teams (tournament_id, name)`
+    );
+
     let upserted = 0;
 
     for (const row of parsed.rows) {
@@ -194,7 +230,12 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[import-teams] error:", message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    const cause =
+      error && typeof error === "object" && "cause" in error
+        ? String((error as { cause?: unknown }).cause ?? "")
+        : "";
+    const full = cause ? `${message} | cause: ${cause}` : message;
+    console.error("[import-teams] error:", full);
+    return NextResponse.json({ ok: false, error: full }, { status: 500 });
   }
 }

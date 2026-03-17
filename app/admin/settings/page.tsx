@@ -965,8 +965,8 @@ export default function AdminSettingsPage() {
                 <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
                   <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Bulk Import Teams (CSV)</h2>
                   <p className="text-xs text-[#0A2041]/70 mb-3">
-                    Paste 64 rows with columns <code>Region,Seed,Name</code> (regions: North, East,
-                    South, West).
+                    Paste 64 team rows using <code>Region,Seed,Name</code> (header row optional).
+                    Regions accepted: North, East, South, West.
                   </p>
 
                   <div className="space-y-3">
@@ -1007,7 +1007,7 @@ export default function AdminSettingsPage() {
                         "Region,Seed,Name",
                         "North,1,Team A",
                         "North,16,Team B",
-                        "... (64 rows total)",
+                        "... (64 team rows total)",
                       ].join("\n")}
                       className="w-full min-h-[180px] rounded-xl border border-[#F5B8B0] bg-[#FDF3EE] p-3 text-[12px] font-mono"
                     />
