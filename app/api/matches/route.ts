@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-function isMissingTournamentColumnError(message: string) {
-  const m = message.toLowerCase();
-  return m.includes("tournament_id") && m.includes("schema cache");
-}
-
 export async function GET(req: Request) {
   try {
     if (!supabaseAdmin) {
@@ -42,7 +37,7 @@ export async function GET(req: Request) {
 
     let { data, error } = await query;
 
-    if (error && tournamentId !== null && isMissingTournamentColumnError(error.message)) {
+    if (error && tournamentId !== null) {
       const fallback = await runUnscoped();
       data = fallback.data;
       error = fallback.error;
