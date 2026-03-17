@@ -152,12 +152,15 @@ export default function BracketPage() {
             ? activeTournament.id
             : null;
 
-        if (!activeTournamentId) {
-          console.warn('[BracketPage] No active tournament found; skipping match/pick load.');
-          setMatches([]);
-          setPicks({});
-          return;
-        }
+        const loadAllMatches = async () => {
+          const fallback = await supabase
+            .from('matches')
+            .select('*')
+            .order('region', { ascending: true })
+            .order('round', { ascending: true })
+            .order('match_order', { ascending: true });
+          return fallback;
+        };
 
         // Read ?u=<userId> from the URL (shared view)
         let viewUserId: string | null = null;
@@ -176,24 +179,37 @@ export default function BracketPage() {
         setIsReadOnlyView(readOnly);
 
         // Matches
-        let { data: matchData, error: matchError } = await supabase
-          .from('matches')
-          .select('*')
-          .eq('tournament_id', activeTournamentId)
-          .order('region', { ascending: true })
-          .order('round', { ascending: true })
-          .order('match_order', { ascending: true });
+        let matchData: unknown[] | null = null;
+        let matchError: { message: string } | null = null;
 
-        if (matchError && isMissingTournamentColumnError(matchError.message)) {
-          const fallback = await supabase
+        if (activeTournamentId) {
+          const scoped = await supabase
             .from('matches')
             .select('*')
+            .eq('tournament_id', activeTournamentId)
             .order('region', { ascending: true })
             .order('round', { ascending: true })
             .order('match_order', { ascending: true });
 
-          matchData = fallback.data;
-          matchError = fallback.error;
+          matchData = scoped.data as unknown[] | null;
+          matchError = scoped.error as { message: string } | null;
+
+          if (matchError && isMissingTournamentColumnError(matchError.message)) {
+            const fallback = await loadAllMatches();
+            matchData = fallback.data as unknown[] | null;
+            matchError = fallback.error as { message: string } | null;
+          }
+
+          if (!matchError && (!Array.isArray(matchData) || matchData.length === 0)) {
+            const fallback = await loadAllMatches();
+            matchData = fallback.data as unknown[] | null;
+            matchError = fallback.error as { message: string } | null;
+          }
+        } else {
+          console.warn('[BracketPage] No active tournament found; falling back to available matches.');
+          const fallback = await loadAllMatches();
+          matchData = fallback.data as unknown[] | null;
+          matchError = fallback.error as { message: string } | null;
         }
 
         if (matchError) {
