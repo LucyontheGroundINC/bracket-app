@@ -115,6 +115,7 @@ export default function BracketPage() {
 
   const [picks, setPicks] = useState<PicksMap>({});
   const [picksLoading, setPicksLoading] = useState(false);
+  const [picksHydrated, setPicksHydrated] = useState(false);
 
   // Lock state
   const [isLocked, setIsLocked] = useState(false);
@@ -235,12 +236,14 @@ export default function BracketPage() {
 
         if (!targetUserId || activeMatchIds.length === 0) {
           setPicksLoading(false);
+          setPicksHydrated(true);
           setPicks({});
           return;
         }
 
         void (async () => {
           setPicksLoading(true);
+          setPicksHydrated(false);
           try {
             const picksQuery = supabase
               .from('picks')
@@ -258,7 +261,7 @@ export default function BracketPage() {
 
             if (picksResult.error) {
               console.error('Error loading picks:', picksResult.error.message);
-              setPicks({});
+              setPicks((prev) => prev);
               return;
             }
 
@@ -270,13 +273,16 @@ export default function BracketPage() {
                 map[String(p.match_id)] = w;
               }
             }
-            setPicks(map);
+            setPicks((prev) => ({ ...map, ...prev }));
           } catch (e: unknown) {
             if (!mounted) return;
             console.error('Error loading picks:', errorMessage(e));
-            setPicks({});
+            setPicks((prev) => prev);
           } finally {
-            if (mounted) setPicksLoading(false);
+            if (mounted) {
+              setPicksLoading(false);
+              setPicksHydrated(true);
+            }
           }
         })();
       } catch (e: unknown) {
@@ -745,7 +751,7 @@ export default function BracketPage() {
     const adminWinnerMode = isAdmin;
     const canAdminSetWinner = adminWinnerMode && savingWinnerId !== m.id && hasBothTeams;
 
-    const baseCanPick = !!userId && savingPickId !== m.id && !isLocked && !isReadOnlyView;
+    const baseCanPick = !!userId && picksHydrated && savingPickId !== m.id && !isLocked && !isReadOnlyView;
     const canPick = baseCanPick && hasBothTeams;
 
     const handleTeamClick = (team: 'team1' | 'team2') => {
