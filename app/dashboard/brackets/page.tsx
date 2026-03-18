@@ -88,6 +88,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutLabel: str
 export default function BracketPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savingWinnerId, setSavingWinnerId] = useState<string | null>(null);
   const [savingPickId, setSavingPickId] = useState<string | null>(null);
   const [recentlySavedMatchId, setRecentlySavedMatchId] = useState<string | null>(null);
@@ -138,6 +139,7 @@ export default function BracketPage() {
     const load = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
 
         // Current auth user
         let authUser: { id: string; email?: string | null } | null = null;
@@ -271,7 +273,9 @@ export default function BracketPage() {
           setPicks({});
         }
       } catch (e: unknown) {
-        console.error('[BracketPage] load failed:', errorMessage(e));
+        const message = errorMessage(e);
+        console.error('[BracketPage] load failed:', message);
+        setLoadError(message);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -283,6 +287,17 @@ export default function BracketPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const watchdog = window.setTimeout(() => {
+      setLoadError((prev) => prev ?? 'Initialization timed out. Please refresh and try again.');
+      setLoading(false);
+    }, 18000);
+
+    return () => window.clearTimeout(watchdog);
+  }, [loading]);
 
   // ------------------ Load lock state from tournaments API ------------------
   useEffect(() => {
@@ -1098,6 +1113,13 @@ export default function BracketPage() {
 
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] p-6">
+      {loadError ? (
+        <div className="max-w-6xl mx-auto mb-4 text-sm px-4 py-3 rounded-2xl border shadow-sm bg-[#CA4C4C]/10 border-[#CA4C4C] text-[#7b2525]">
+          <span className="font-semibold mr-1">Load issue:</span>
+          {loadError}
+        </div>
+      ) : null}
+
       {/* Top banner */}
       <header className="max-w-6xl mx-auto mb-4 flex items-center justify-between gap-4">
         <div className="flex flex-col items-start gap-1">
