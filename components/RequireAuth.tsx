@@ -33,11 +33,25 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   useEffect(() => {
     let mounted = true;
 
-    const setAdminBypassCookie = (email: string | null | undefined) => {
-      const isAdmin = isAdminEmail(email);
+    const setAdminBypassCookie = (isAdmin: boolean) => {
       const secure =
         typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
       document.cookie = `lotg_admin_bypass=${isAdmin ? "1" : "0"}; Path=/; Max-Age=3600; SameSite=Lax${secure}`;
+    };
+
+    const resolveIsAdmin = async (user: { id: string; email?: string | null } | null): Promise<boolean> => {
+      if (!user) return false;
+
+      if (isAdminEmail(user.email ?? null)) return true;
+
+      const { data: prof, error } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) return false;
+      return prof?.is_admin === true;
     };
 
     const redirectToSignIn = () => {
@@ -62,9 +76,9 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       if (!mounted) return;
 
       if (data.session?.user) {
-        const email = data.session.user.email ?? null;
-        const admin = isAdminEmail(email);
-        setAdminBypassCookie(email);
+        const admin = await resolveIsAdmin(data.session.user);
+        if (!mounted) return;
+        setAdminBypassCookie(admin);
 
         if (isBracketPath(pathname) && !admin) {
           setChecked(true);
@@ -76,7 +90,7 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
         setIsAuthed(true);
         setChecked(true);
       } else {
-        setAdminBypassCookie(null);
+        setAdminBypassCookie(false);
         setChecked(true);
         redirectToSignIn();
       }
@@ -85,33 +99,37 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
     verify();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!mounted) return;
+      void (async () => {
+        if (!mounted) return;
 
-      if (!session?.user && !isPublicPath(pathname)) {
-        setAdminBypassCookie(null);
-        setIsAuthed(false);
-        redirectToSignIn();
-        return;
-      }
-
-      if (isPublicPath(pathname)) {
-        setAdminBypassCookie(session?.user?.email ?? null);
-        setIsAuthed(true);
-        return;
-      }
-
-      if (session?.user) {
-        const email = session.user.email ?? null;
-        const admin = isAdminEmail(email);
-        setAdminBypassCookie(email);
-
-        if (isBracketPath(pathname) && !admin) {
-          redirectToUnderConstruction();
+        if (!session?.user && !isPublicPath(pathname)) {
+          setAdminBypassCookie(false);
+          setIsAuthed(false);
+          redirectToSignIn();
           return;
         }
 
-        setIsAuthed(true);
-      }
+        if (isPublicPath(pathname)) {
+          const admin = await resolveIsAdmin(session?.user ?? null);
+          if (!mounted) return;
+          setAdminBypassCookie(admin);
+          setIsAuthed(true);
+          return;
+        }
+
+        if (session?.user) {
+          const admin = await resolveIsAdmin(session.user);
+          if (!mounted) return;
+          setAdminBypassCookie(admin);
+
+          if (isBracketPath(pathname) && !admin) {
+            redirectToUnderConstruction();
+            return;
+          }
+
+          setIsAuthed(true);
+        }
+      })();
     });
 
     return () => {
