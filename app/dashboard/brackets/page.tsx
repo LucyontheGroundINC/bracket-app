@@ -602,6 +602,16 @@ export default function BracketPage() {
           }
           return next;
         });
+        void fetch('/api/telemetry/pick-save-failure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            matchId,
+            tournamentId: matches.find((m) => m.id === matchId)?.tournament_id ?? null,
+            error: saveError,
+          }),
+        }).catch(() => undefined);
         alert(`Could not save your pick. ${saveError}`);
         return;
       }

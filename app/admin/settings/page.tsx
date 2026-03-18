@@ -33,6 +33,14 @@ type SchemaStatus = {
   selectedTournamentError: string | null;
 };
 
+type PickSaveTelemetrySummary = {
+  ok: boolean;
+  hours: number;
+  total: number;
+  byType: Array<{ error_type: string; count: number }>;
+  latest: Array<{ created_at: string; error_type: string; error_text: string }>;
+};
+
 type TabKey = "overview" | "tournaments" | "teams" | "maintenance";
 
 export default function AdminSettingsPage() {
@@ -77,6 +85,8 @@ export default function AdminSettingsPage() {
   const [schemaStatus, setSchemaStatus] = useState<SchemaStatus | null>(null);
   const [loadingSchemaStatus, setLoadingSchemaStatus] = useState(false);
   const [repairingSchema, setRepairingSchema] = useState(false);
+  const [pickTelemetry, setPickTelemetry] = useState<PickSaveTelemetrySummary | null>(null);
+  const [loadingPickTelemetry, setLoadingPickTelemetry] = useState(false);
 
   // CSV Importer (Games)
   const [gamesCsv, setGamesCsv] = useState<string>("");
@@ -363,6 +373,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     if (activeTab === "maintenance") {
       refreshSchemaStatus();
+      refreshPickTelemetry();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedTournamentId]);
@@ -705,6 +716,26 @@ export default function AdminSettingsPage() {
       setMaintenanceStatus(`Schema status check failed: ${message}`);
     } finally {
       setLoadingSchemaStatus(false);
+    }
+  }
+
+  async function refreshPickTelemetry() {
+    setLoadingPickTelemetry(true);
+    try {
+      const res = await fetch('/api/admin/pick-save-telemetry?hours=24', { cache: 'no-store' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setPickTelemetry(null);
+        setMaintenanceStatus(`Pick telemetry check failed: ${json?.error ?? 'Unknown error'}`);
+        return;
+      }
+      setPickTelemetry(json as PickSaveTelemetrySummary);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setPickTelemetry(null);
+      setMaintenanceStatus(`Pick telemetry check failed: ${message}`);
+    } finally {
+      setLoadingPickTelemetry(false);
     }
   }
 
@@ -1247,6 +1278,44 @@ export default function AdminSettingsPage() {
                     {schemaStatus?.selectedTournamentError ? (
                       <p className="text-[#CA4C4C]">
                         Selected tournament query error: {schemaStatus.selectedTournamentError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="bg-white/90 border border-[#F5B8B0] rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold mb-1 text-[#CA4C4C]">Pick Save Telemetry (24h)</h2>
+                      <p className="text-xs text-[#0A2041]/70">
+                        Tracks failed autosave attempts by error type.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={refreshPickTelemetry}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/80 border border-[#F5B8B0] hover:bg-white"
+                    >
+                      {loadingPickTelemetry ? "Checking…" : "Refresh"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 text-xs text-[#0A2041]/80 space-y-1">
+                    <p>Total failures: {pickTelemetry?.total ?? "—"}</p>
+                    {pickTelemetry?.byType?.length ? (
+                      <p>
+                        By type:{" "}
+                        {pickTelemetry.byType
+                          .map((r) => `${r.error_type} (${r.count})`)
+                          .join(", ")}
+                      </p>
+                    ) : (
+                      <p>By type: none</p>
+                    )}
+                    {pickTelemetry?.latest?.[0] ? (
+                      <p>
+                        Latest: {pickTelemetry.latest[0].error_type} — {pickTelemetry.latest[0].error_text}
                       </p>
                     ) : null}
                   </div>
