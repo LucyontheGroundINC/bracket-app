@@ -70,6 +70,20 @@ function errorMessage(e: unknown): string {
   return 'Unknown error';
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutLabel: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutLabel)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 // ------------------ Component ------------------
 export default function BracketPage() {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -126,22 +140,40 @@ export default function BracketPage() {
         setLoading(true);
 
         // Current auth user
-        const { data: auth, error: userError } = await supabase.auth.getUser();
-        if (userError) console.error('Error loading user:', userError.message);
+        let authUser: { id: string; email?: string | null } | null = null;
+        try {
+          const { data: auth, error: userError } = await withTimeout(
+            supabase.auth.getUser(),
+            10000,
+            'Auth request timed out'
+          );
+          if (userError) console.error('Error loading user:', userError.message);
+          authUser = auth.user ?? null;
+        } catch (e: unknown) {
+          console.error('Error loading user:', errorMessage(e));
+          authUser = null;
+        }
 
-        const authUser = auth.user ?? null;
         if (!mounted) return;
 
         const authEmail = authUser?.email ?? null;
         setUserEmail(authEmail);
 
         // Active tournament (Bracket Challenge should always use current contest)
-        const activeTournamentRes = await fetch('/api/tournaments/active', {
-          cache: 'no-store',
-        });
-        const activeTournament = activeTournamentRes.ok
-          ? ((await activeTournamentRes.json()) as { id?: number } | null)
-          : null;
+        let activeTournament: { id?: number } | null = null;
+        try {
+          const activeTournamentRes = await withTimeout(
+            fetch('/api/tournaments/active', { cache: 'no-store' }),
+            10000,
+            'Active tournament request timed out'
+          );
+          activeTournament = activeTournamentRes.ok
+            ? ((await activeTournamentRes.json()) as { id?: number } | null)
+            : null;
+        } catch (e: unknown) {
+          console.error('[BracketPage] active tournament load failed:', errorMessage(e));
+          activeTournament = null;
+        }
         const activeTournamentId =
           activeTournament && typeof activeTournament.id === 'number'
             ? activeTournament.id
@@ -178,7 +210,20 @@ export default function BracketPage() {
           console.warn('[BracketPage] No active tournament found; loading available matches.');
         }
 
-        const matchesRes = await loadMatchesFromApi(activeTournamentId);
+        let matchesRes: { data: unknown[] | null; error: string | null } = {
+          data: [],
+          error: null,
+        };
+
+        try {
+          matchesRes = await withTimeout(
+            loadMatchesFromApi(activeTournamentId),
+            12000,
+            'Matches request timed out'
+          );
+        } catch (e: unknown) {
+          matchesRes = { data: [], error: errorMessage(e) };
+        }
 
         if (matchesRes.error) {
           console.error('Error loading matches:', matchesRes.error);
@@ -191,11 +236,20 @@ export default function BracketPage() {
 
         // Picks for the target user (owner or shared user)
         if (targetUserId && activeMatchIds.length > 0) {
-          const { data: picksData, error: picksError } = await supabase
+          const picksQuery = supabase
             .from('picks')
             .select('match_id, chosen_winner')
             .eq('user_id', targetUserId)
             .in('match_id', activeMatchIds);
+
+          const picksResult = (await withTimeout(
+            Promise.resolve(picksQuery) as Promise<{ data: unknown; error: { message: string } | null }>,
+            12000,
+            'Picks request timed out'
+          )) as { data: unknown; error: { message: string } | null };
+
+          const picksData = picksResult.data;
+          const picksError = picksResult.error;
 
           if (picksError) {
             console.error('Error loading picks:', picksError.message);
