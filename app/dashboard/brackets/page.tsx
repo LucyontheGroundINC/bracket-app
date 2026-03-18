@@ -628,9 +628,17 @@ export default function BracketPage() {
         }),
       });
 
-      const json = await res.json().catch(() => null);
+      const rawText = await res.text();
+      let json: { error?: string } | null = null;
+      try {
+        json = rawText ? (JSON.parse(rawText) as { error?: string }) : null;
+      } catch {
+        json = null;
+      }
+
       if (!res.ok) {
-        return json?.error ?? 'Failed to save pick';
+        const detail = json?.error ?? rawText?.trim() ?? 'Failed to save pick';
+        return `(${res.status}) ${detail}`;
       }
 
       return null;
