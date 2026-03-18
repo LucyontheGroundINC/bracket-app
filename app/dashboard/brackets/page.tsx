@@ -627,7 +627,7 @@ export default function BracketPage() {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+          const timeoutId = window.setTimeout(() => controller.abort(), 15000);
 
           const res = await fetch('/api/picks/save', {
             method: 'POST',
@@ -680,6 +680,23 @@ export default function BracketPage() {
       const saveError = await persistPick();
 
       if (saveError) {
+        if (saveError.startsWith('(network)')) {
+          const { data: persistedRows, error: persistedError } = await supabase
+            .from('picks')
+            .select('chosen_winner')
+            .eq('user_id', userId)
+            .eq('match_id', matchId)
+            .limit(1);
+
+          if (!persistedError && Array.isArray(persistedRows) && persistedRows[0]?.chosen_winner === winner) {
+            setRecentlySavedMatchId(matchId);
+            window.setTimeout(() => {
+              setRecentlySavedMatchId((current) => (current === matchId ? null : current));
+            }, 1000);
+            return;
+          }
+        }
+
         console.error('Error saving pick:', saveError);
         setPicks((prev) => {
           const next = { ...prev };

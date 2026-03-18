@@ -47,11 +47,6 @@ export async function POST(req: Request) {
     const matchId = (body.matchId ?? "").trim();
     const chosenWinner = body.chosenWinner;
 
-    await db.execute(sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS picks_user_match_uidx
-      ON public.picks (user_id, match_id)
-    `);
-
     if (!matchId || (chosenWinner !== "team1" && chosenWinner !== "team2")) {
       return NextResponse.json(
         { error: "matchId and chosenWinner(team1|team2) are required" },
