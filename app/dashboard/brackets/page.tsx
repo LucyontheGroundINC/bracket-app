@@ -626,9 +626,6 @@ export default function BracketPage() {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          const controller = new AbortController();
-          const timeoutId = window.setTimeout(() => controller.abort(), 15000);
-
           const res = await fetch('/api/picks/save', {
             method: 'POST',
             headers: {
@@ -639,8 +636,7 @@ export default function BracketPage() {
               matchId,
               chosenWinner: winner,
             }),
-            signal: controller.signal,
-          }).finally(() => window.clearTimeout(timeoutId));
+          });
 
           const rawText = await res.text();
           let json: { error?: string } | null = null;
