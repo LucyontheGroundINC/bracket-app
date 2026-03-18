@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { syncUserToDB } from "@/lib/api";
+import { isAdminEmail } from "@/lib/admin";
 
 type Mode = "signin" | "signup";
 
@@ -13,6 +14,13 @@ function safeReturnTo(value: string | null) {
   if (!value.startsWith("/")) return "/dashboard";
   if (value.startsWith("//")) return "/dashboard";
   return value;
+}
+
+function setAdminBypassCookie(email: string | null | undefined) {
+  const isAdmin = isAdminEmail(email);
+  const secure =
+    typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `lotg_admin_bypass=${isAdmin ? "1" : "0"}; Path=/; Max-Age=3600; SameSite=Lax${secure}`;
 }
 
 export default function SignInClient() {
@@ -38,7 +46,10 @@ export default function SignInClient() {
     const check = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error) return;
-      if (data.user) router.replace(returnTo);
+      if (data.user) {
+        setAdminBypassCookie(data.user.email ?? null);
+        router.replace(returnTo);
+      }
     };
     check();
   }, [router, returnTo]);
@@ -48,6 +59,7 @@ export default function SignInClient() {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         const u = session.user;
+        setAdminBypassCookie(u.email ?? null);
 
         const nameFromMeta =
           (u.user_metadata?.display_name as string | undefined) ??
@@ -67,6 +79,10 @@ export default function SignInClient() {
           .catch((err) => console.warn("syncUserToDB failed:", err));
 
         router.replace(returnTo);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setAdminBypassCookie(null);
       }
     });
 
@@ -132,6 +148,7 @@ export default function SignInClient() {
 
         // Redirect immediately on success (do not rely on auth event timing)
         if (data.session?.user) {
+          setAdminBypassCookie(data.session.user.email ?? null);
           router.replace(returnTo);
           return;
         }
