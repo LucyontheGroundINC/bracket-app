@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/admin";
 
 function isPublicPath(pathname: string) {
   return (
@@ -28,6 +29,13 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   useEffect(() => {
     let mounted = true;
 
+    const setAdminBypassCookie = (email: string | null | undefined) => {
+      const isAdmin = isAdminEmail(email);
+      const secure =
+        typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `lotg_admin_bypass=${isAdmin ? "1" : "0"}; Path=/; Max-Age=3600; SameSite=Lax${secure}`;
+    };
+
     const redirectToSignIn = () => {
       const search = typeof window !== "undefined" ? window.location.search : "";
       const returnTo = safeReturnTo(pathname, search);
@@ -46,9 +54,11 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       if (!mounted) return;
 
       if (data.session?.user) {
+        setAdminBypassCookie(data.session.user.email ?? null);
         setIsAuthed(true);
         setChecked(true);
       } else {
+        setAdminBypassCookie(null);
         setChecked(true);
         redirectToSignIn();
       }
@@ -60,17 +70,22 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       if (!mounted) return;
 
       if (!session?.user && !isPublicPath(pathname)) {
+        setAdminBypassCookie(null);
         setIsAuthed(false);
         redirectToSignIn();
         return;
       }
 
       if (isPublicPath(pathname)) {
+        setAdminBypassCookie(session?.user?.email ?? null);
         setIsAuthed(true);
         return;
       }
 
-      if (session?.user) setIsAuthed(true);
+      if (session?.user) {
+        setAdminBypassCookie(session.user.email ?? null);
+        setIsAuthed(true);
+      }
     });
 
     return () => {
