@@ -622,32 +622,51 @@ export default function BracketPage() {
         return 'Your session expired. Please sign in again.';
       }
 
-      const res = await fetch('/api/picks/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          matchId,
-          chosenWinner: winner,
-        }),
-      });
+      const maxAttempts = 3;
 
-      const rawText = await res.text();
-      let json: { error?: string } | null = null;
-      try {
-        json = rawText ? (JSON.parse(rawText) as { error?: string }) : null;
-      } catch {
-        json = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+
+          const res = await fetch('/api/picks/save', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              matchId,
+              chosenWinner: winner,
+            }),
+            signal: controller.signal,
+          }).finally(() => window.clearTimeout(timeoutId));
+
+          const rawText = await res.text();
+          let json: { error?: string } | null = null;
+          try {
+            json = rawText ? (JSON.parse(rawText) as { error?: string }) : null;
+          } catch {
+            json = null;
+          }
+
+          if (res.ok) return null;
+
+          const detail = json?.error ?? rawText?.trim() ?? 'Failed to save pick';
+          const isRetryable = res.status >= 500 && res.status < 600;
+
+          if (!isRetryable || attempt === maxAttempts) {
+            return `(${res.status}) ${detail}`;
+          }
+        } catch (e: unknown) {
+          const message = errorMessage(e);
+          if (attempt === maxAttempts) return `(network) ${message}`;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 250 * attempt));
       }
 
-      if (!res.ok) {
-        const detail = json?.error ?? rawText?.trim() ?? 'Failed to save pick';
-        return `(${res.status}) ${detail}`;
-      }
-
-      return null;
+      return 'Failed to save pick';
     };
 
     try {

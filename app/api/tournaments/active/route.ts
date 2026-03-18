@@ -21,11 +21,10 @@ export async function GET() {
 
     return NextResponse.json(rows[0] ?? null);
   } catch (e: unknown) {
-  console.error(
-    "[tournaments] error:",
-    e instanceof Error ? e.message : e
-  );
-}
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[tournaments] error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
 }
 

@@ -21,29 +21,45 @@ export async function GET(req: Request) {
         ? Number(tournamentIdParam)
         : null;
 
-    const runUnscoped = () =>
-      admin
-        .from("matches")
-        .select("*")
-        .order("region", { ascending: true })
-        .order("round", { ascending: true })
-        .order("match_order", { ascending: true });
+    let effectiveTournamentId = tournamentId;
 
-    let query = runUnscoped();
-    if (tournamentId !== null) {
-      query = admin
-        .from("matches")
-        .select("*")
-        .eq("tournament_id", tournamentId)
-        .order("region", { ascending: true })
-        .order("round", { ascending: true })
-        .order("match_order", { ascending: true });
+    if (effectiveTournamentId === null) {
+      const { data: activeTournament, error: activeTournamentError } = await admin
+        .from("tournaments")
+        .select("id")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeTournamentError) {
+        return NextResponse.json({ error: activeTournamentError.message }, { status: 500 });
+      }
+
+      effectiveTournamentId = typeof activeTournament?.id === "number" ? activeTournament.id : null;
     }
 
-    let { data, error } = await query;
+    if (effectiveTournamentId === null) {
+      return NextResponse.json([], {
+        headers: { "Cache-Control": "no-store, max-age=0" },
+      });
+    }
 
-    if (error && tournamentId !== null && isMissingTournamentColumnError(error.message)) {
-      const fallback = await runUnscoped();
+    let { data, error } = await admin
+      .from("matches")
+      .select("*")
+      .eq("tournament_id", effectiveTournamentId)
+      .order("region", { ascending: true })
+      .order("round", { ascending: true })
+      .order("match_order", { ascending: true });
+
+    if (error && isMissingTournamentColumnError(error.message)) {
+      const fallback = await admin
+        .from("matches")
+        .select("*")
+        .order("region", { ascending: true })
+        .order("round", { ascending: true })
+        .order("match_order", { ascending: true });
       data = fallback.data;
       error = fallback.error;
     }
