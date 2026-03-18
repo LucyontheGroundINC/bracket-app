@@ -21,6 +21,10 @@ function safeReturnTo(pathname: string, search: string) {
   return full;
 }
 
+function isBracketPath(pathname: string) {
+  return pathname === "/dashboard/brackets" || pathname === "/dashboard/brackets/";
+}
+
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [checked, setChecked] = useState(false);
@@ -42,6 +46,10 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       window.location.assign(`/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
     };
 
+    const redirectToUnderConstruction = () => {
+      window.location.assign("/dashboard/brackets-under-construction");
+    };
+
     async function verify() {
       if (isPublicPath(pathname)) {
         if (!mounted) return;
@@ -54,7 +62,17 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       if (!mounted) return;
 
       if (data.session?.user) {
-        setAdminBypassCookie(data.session.user.email ?? null);
+        const email = data.session.user.email ?? null;
+        const admin = isAdminEmail(email);
+        setAdminBypassCookie(email);
+
+        if (isBracketPath(pathname) && !admin) {
+          setChecked(true);
+          setIsAuthed(true);
+          redirectToUnderConstruction();
+          return;
+        }
+
         setIsAuthed(true);
         setChecked(true);
       } else {
@@ -83,7 +101,15 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
       }
 
       if (session?.user) {
-        setAdminBypassCookie(session.user.email ?? null);
+        const email = session.user.email ?? null;
+        const admin = isAdminEmail(email);
+        setAdminBypassCookie(email);
+
+        if (isBracketPath(pathname) && !admin) {
+          redirectToUnderConstruction();
+          return;
+        }
+
         setIsAuthed(true);
       }
     });
