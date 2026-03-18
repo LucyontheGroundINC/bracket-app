@@ -36,6 +36,15 @@ function getErrorMessage(e: unknown) {
   return "Unknown error";
 }
 
+function normalizeRegion(value: string | null | undefined): Region | null {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (raw === "east") return "East";
+  if (raw === "west") return "West";
+  if (raw === "south") return "South";
+  if (raw === "midwest" || raw === "north") return "Midwest";
+  return null;
+}
+
 function getSupabaseAdmin(): { client: SupabaseClient; projectRef: string | null } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -166,23 +175,52 @@ export async function POST(req: Request) {
       );
     }
 
-    // Order teams
-    const ordered = [...teams];
+    const teamsByRegion: Record<Region, TeamRow[]> = {
+      East: [],
+      West: [],
+      South: [],
+      Midwest: [],
+    };
 
-    if (mode === "random") {
-      // Fisher–Yates shuffle
-      for (let i = ordered.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
+    for (const team of teams) {
+      const region = normalizeRegion(team.region);
+      if (!region) {
+        return NextResponse.json(
+          {
+            error: `Invalid team region for ${team.name}: ${team.region ?? "(null)"}. Expected East, West, South, or Midwest.`,
+          },
+          { status: 400 }
+        );
       }
-    } else {
-      // seeded: seed asc (nulls last), stable by id
-      ordered.sort((a, b) => {
-        const as = a.seed ?? 9999;
-        const bs = b.seed ?? 9999;
-        if (as !== bs) return as - bs;
-        return a.id - b.id;
-      });
+      teamsByRegion[region].push(team);
+    }
+
+    for (const region of REGIONS) {
+      if (teamsByRegion[region].length !== 16) {
+        return NextResponse.json(
+          {
+            error: `Region ${region} must have exactly 16 teams. Found ${teamsByRegion[region].length}.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (mode === "random") {
+        // Fisher–Yates shuffle within region
+        const arr = teamsByRegion[region];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+      } else {
+        // seeded: seed asc (nulls last), stable by id
+        teamsByRegion[region].sort((a, b) => {
+          const as = a.seed ?? 9999;
+          const bs = b.seed ?? 9999;
+          if (as !== bs) return as - bs;
+          return a.id - b.id;
+        });
+      }
     }
 
     // Wipe matches first (your bracket UI reads only this table)
@@ -198,9 +236,6 @@ export async function POST(req: Request) {
     // Build full skeleton inserts
     const inserts: MatchInsert[] = [];
 
-    // 64 teams => 16 per region
-    const perRegion = 16;
-
     // Round 1 per region: 8 matches, standard pairing 1v16, 8v9, 5v12, 4v13, 6v11, 3v14, 7v10, 2v15
     const pairings: ReadonlyArray<readonly [number, number]> = [
       [0, 15], // 1 vs 16 (if sorted by seed)
@@ -213,9 +248,8 @@ export async function POST(req: Request) {
       [1, 14], // 2 vs 15
     ] as const;
 
-    for (let r = 0; r < 4; r++) {
-      const region: Region = REGIONS[r];
-      const chunk = ordered.slice(r * perRegion, (r + 1) * perRegion);
+    for (const region of REGIONS) {
+      const chunk = teamsByRegion[region];
 
       // Round 1 (8 matches)
       pairings.forEach(([aIdx, bIdx], i) => {
