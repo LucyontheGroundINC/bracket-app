@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
+import { db } from "@/db/client";
+import { sql } from "drizzle-orm";
 
 type Body = {
   matchId?: string;
   chosenWinner?: "team1" | "team2";
 };
-
-function isDuplicateError(message: string) {
-  const m = message.toLowerCase();
-  return m.includes("duplicate") || m.includes("unique");
-}
 
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get("authorization") || req.headers.get("Authorization");
@@ -20,10 +17,18 @@ function getBearerToken(req: Request): string | null {
   return token;
 }
 
+function getAuthClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
+  return createClient(url, anonKey, { auth: { persistSession: false } });
+}
+
 export async function POST(req: Request) {
   try {
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: "Supabase admin client not configured" }, { status: 500 });
+    const authClient = getAuthClient();
+    if (!authClient) {
+      return NextResponse.json({ error: "Supabase auth client not configured" }, { status: 500 });
     }
 
     const token = getBearerToken(req);
@@ -31,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing bearer token" }, { status: 401 });
     }
 
-    const authRes = await supabaseAdmin.auth.getUser(token);
+    const authRes = await authClient.auth.getUser(token);
     const authUser = authRes.data.user;
 
     if (authRes.error || !authUser) {
@@ -49,15 +54,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: matchRow, error: matchError } = await supabaseAdmin
-      .from("matches")
-      .select("id,tournament_id")
-      .eq("id", matchId)
-      .maybeSingle();
+    const matchRows = (await db.execute(sql`
+      SELECT id, tournament_id
+      FROM public.matches
+      WHERE id = ${matchId}
+      LIMIT 1
+    `)) as Array<{ id: string; tournament_id: number | null }>;
 
-    if (matchError) {
-      return NextResponse.json({ error: matchError.message }, { status: 500 });
-    }
+    const matchRow = Array.isArray(matchRows) ? matchRows[0] : null;
 
     if (!matchRow) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
@@ -67,15 +71,14 @@ export async function POST(req: Request) {
       typeof matchRow.tournament_id === "number" ? matchRow.tournament_id : null;
 
     if (tournamentId !== null) {
-      const { data: tournament, error: tournamentError } = await supabaseAdmin
-        .from("tournaments")
-        .select("is_locked_manual,lock_at")
-        .eq("id", tournamentId)
-        .maybeSingle();
+      const tournamentRows = (await db.execute(sql`
+        SELECT is_locked_manual, lock_at
+        FROM public.tournaments
+        WHERE id = ${tournamentId}
+        LIMIT 1
+      `)) as Array<{ is_locked_manual: boolean | null; lock_at: string | null }>;
 
-      if (tournamentError) {
-        return NextResponse.json({ error: tournamentError.message }, { status: 500 });
-      }
+      const tournament = Array.isArray(tournamentRows) ? tournamentRows[0] : null;
 
       const isManualLock = !!tournament?.is_locked_manual;
       const lockAt = tournament?.lock_at ? new Date(tournament.lock_at) : null;
@@ -88,58 +91,16 @@ export async function POST(req: Request) {
 
     const uid = authUser.id;
 
-    const upsert = await supabaseAdmin
-      .from("picks")
-      .upsert(
-        { user_id: uid, match_id: matchId, chosen_winner: chosenWinner },
-        { onConflict: "user_id,match_id" }
-      )
-      .select("id")
-      .maybeSingle();
+    const upsertRows = (await db.execute(sql`
+      INSERT INTO public.picks (user_id, match_id, chosen_winner)
+      VALUES (${uid}, ${matchId}, ${chosenWinner})
+      ON CONFLICT (user_id, match_id)
+      DO UPDATE SET chosen_winner = EXCLUDED.chosen_winner
+      RETURNING id
+    `)) as Array<{ id: string | number }>;
 
-    if (!upsert.error) {
-      return NextResponse.json({ ok: true, id: upsert.data?.id ?? null });
-    }
-
-    const update = await supabaseAdmin
-      .from("picks")
-      .update({ chosen_winner: chosenWinner })
-      .eq("user_id", uid)
-      .eq("match_id", matchId)
-      .select("id");
-
-    if (!update.error && Array.isArray(update.data) && update.data.length > 0) {
-      return NextResponse.json({ ok: true, id: update.data[0]?.id ?? null });
-    }
-
-    const insert = await supabaseAdmin
-      .from("picks")
-      .insert({ user_id: uid, match_id: matchId, chosen_winner: chosenWinner })
-      .select("id")
-      .maybeSingle();
-
-    if (!insert.error) {
-      return NextResponse.json({ ok: true, id: insert.data?.id ?? null });
-    }
-
-    if (isDuplicateError(insert.error.message)) {
-      const retry = await supabaseAdmin
-        .from("picks")
-        .update({ chosen_winner: chosenWinner })
-        .eq("user_id", uid)
-        .eq("match_id", matchId)
-        .select("id");
-
-      if (!retry.error && Array.isArray(retry.data) && retry.data.length > 0) {
-        return NextResponse.json({ ok: true, id: retry.data[0]?.id ?? null });
-      }
-
-      if (retry.error) {
-        return NextResponse.json({ error: retry.error.message }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json({ error: insert.error.message }, { status: 500 });
+    const savedId = Array.isArray(upsertRows) && upsertRows[0] ? upsertRows[0].id : null;
+    return NextResponse.json({ ok: true, id: savedId });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
