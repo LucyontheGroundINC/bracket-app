@@ -114,6 +114,7 @@ export default function BracketPage() {
   const [mobileRound, setMobileRound] = useState<number>(1);
 
   const [picks, setPicks] = useState<PicksMap>({});
+  const [picksLoading, setPicksLoading] = useState(false);
 
   // Lock state
   const [isLocked, setIsLocked] = useState(false);
@@ -233,11 +234,13 @@ export default function BracketPage() {
         setLoading(false);
 
         if (!targetUserId || activeMatchIds.length === 0) {
+          setPicksLoading(false);
           setPicks({});
           return;
         }
 
         void (async () => {
+          setPicksLoading(true);
           try {
             const picksQuery = supabase
               .from('picks')
@@ -272,6 +275,8 @@ export default function BracketPage() {
             if (!mounted) return;
             console.error('Error loading picks:', errorMessage(e));
             setPicks({});
+          } finally {
+            if (mounted) setPicksLoading(false);
           }
         })();
       } catch (e: unknown) {
@@ -1194,6 +1199,12 @@ export default function BracketPage() {
           Tip: swipe left/right to scroll the full bracket.
         </div>
       )}
+
+      {picksLoading ? (
+        <div className="max-w-6xl mx-auto mb-3 text-[11px] text-[#0A2041]/70 px-1">
+          Syncing your picks…
+        </div>
+      ) : null}
 
       {/* Lock status banner */}
       {lockMessage && (
