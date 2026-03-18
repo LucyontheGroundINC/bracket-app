@@ -141,41 +141,33 @@ export default function BracketPage() {
         setLoading(true);
         setLoadError(null);
 
-        // Current auth user
+        // Current auth user + active tournament (parallel)
+        const [authResult, activeTournamentResult] = await Promise.allSettled([
+          withTimeout(supabase.auth.getUser(), 10000, 'Auth request timed out'),
+          withTimeout(fetch('/api/tournaments/active', { cache: 'no-store' }), 10000, 'Active tournament request timed out'),
+        ]);
+
         let authUser: { id: string; email?: string | null } | null = null;
-        try {
-          const { data: auth, error: userError } = await withTimeout(
-            supabase.auth.getUser(),
-            10000,
-            'Auth request timed out'
-          );
-          if (userError) console.error('Error loading user:', userError.message);
-          authUser = auth.user ?? null;
-        } catch (e: unknown) {
-          console.error('Error loading user:', errorMessage(e));
-          authUser = null;
+        if (authResult.status === 'fulfilled') {
+          if (authResult.value.error) console.error('Error loading user:', authResult.value.error.message);
+          authUser = authResult.value.data.user ?? null;
+        } else {
+          console.error('Error loading user:', errorMessage(authResult.reason));
+        }
+
+        let activeTournament: { id?: number } | null = null;
+        if (activeTournamentResult.status === 'fulfilled') {
+          activeTournament = activeTournamentResult.value.ok
+            ? ((await activeTournamentResult.value.json()) as { id?: number } | null)
+            : null;
+        } else {
+          console.error('[BracketPage] active tournament load failed:', errorMessage(activeTournamentResult.reason));
         }
 
         if (!mounted) return;
 
         const authEmail = authUser?.email ?? null;
         setUserEmail(authEmail);
-
-        // Active tournament (Bracket Challenge should always use current contest)
-        let activeTournament: { id?: number } | null = null;
-        try {
-          const activeTournamentRes = await withTimeout(
-            fetch('/api/tournaments/active', { cache: 'no-store' }),
-            10000,
-            'Active tournament request timed out'
-          );
-          activeTournament = activeTournamentRes.ok
-            ? ((await activeTournamentRes.json()) as { id?: number } | null)
-            : null;
-        } catch (e: unknown) {
-          console.error('[BracketPage] active tournament load failed:', errorMessage(e));
-          activeTournament = null;
-        }
         const activeTournamentId =
           activeTournament && typeof activeTournament.id === 'number'
             ? activeTournament.id
@@ -236,42 +228,52 @@ export default function BracketPage() {
 
         const activeMatchIds = matchRows.map((m) => m.id).filter(Boolean);
 
-        // Picks for the target user (owner or shared user)
-        if (targetUserId && activeMatchIds.length > 0) {
-          const picksQuery = supabase
-            .from('picks')
-            .select('match_id, chosen_winner')
-            .eq('user_id', targetUserId)
-            .in('match_id', activeMatchIds);
+        // Render bracket ASAP; load picks in background so UI doesn't feel stuck.
+        if (!mounted) return;
+        setLoading(false);
 
-          const picksResult = (await withTimeout(
-            Promise.resolve(picksQuery) as Promise<{ data: unknown; error: { message: string } | null }>,
-            12000,
-            'Picks request timed out'
-          )) as { data: unknown; error: { message: string } | null };
+        if (!targetUserId || activeMatchIds.length === 0) {
+          setPicks({});
+          return;
+        }
 
-          const picksData = picksResult.data;
-          const picksError = picksResult.error;
+        void (async () => {
+          try {
+            const picksQuery = supabase
+              .from('picks')
+              .select('match_id, chosen_winner')
+              .eq('user_id', targetUserId)
+              .in('match_id', activeMatchIds);
 
-          if (picksError) {
-            console.error('Error loading picks:', picksError.message);
-            setPicks({});
-          } else {
-            const rows = (Array.isArray(picksData) ? picksData : []) as unknown as PickRow[];
+            const picksResult = (await withTimeout(
+              Promise.resolve(picksQuery) as Promise<{ data: unknown; error: { message: string } | null }>,
+              12000,
+              'Picks request timed out'
+            )) as { data: unknown; error: { message: string } | null };
+
+            if (!mounted) return;
+
+            if (picksResult.error) {
+              console.error('Error loading picks:', picksResult.error.message);
+              setPicks({});
+              return;
+            }
+
+            const rows = (Array.isArray(picksResult.data) ? picksResult.data : []) as unknown as PickRow[];
             const map: PicksMap = {};
-
             for (const p of rows) {
               const w = p?.chosen_winner ?? null;
               if (w === 'team1' || w === 'team2') {
                 map[String(p.match_id)] = w;
               }
             }
-
             setPicks(map);
+          } catch (e: unknown) {
+            if (!mounted) return;
+            console.error('Error loading picks:', errorMessage(e));
+            setPicks({});
           }
-        } else {
-          setPicks({});
-        }
+        })();
       } catch (e: unknown) {
         const message = errorMessage(e);
         console.error('[BracketPage] load failed:', message);
