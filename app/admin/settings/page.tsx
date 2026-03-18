@@ -682,14 +682,30 @@ export default function AdminSettingsPage() {
 
     setMaintenanceStatus("Resetting your picks…");
     try {
-      const { error } = await supabase.from("picks").delete().eq("user_id", userId);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
 
-      if (error) {
-        console.error("Reset picks error:", error.message);
+      if (!accessToken) {
+        setMaintenanceStatus("Failed to reset your picks (session expired).");
+        return;
+      }
+
+      const res = await fetch('/api/picks/reset-mine', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        console.error("Reset picks error:", json?.error ?? `(${res.status}) Failed`);
         setMaintenanceStatus("Failed to reset your picks.");
         return;
       }
-      setMaintenanceStatus("Your picks have been reset ✅");
+      setMaintenanceStatus(`Your picks have been reset ✅ (${json?.deleted ?? 0} deleted)`);
     } catch (err) {
       console.error(err);
       setMaintenanceStatus("Error resetting your picks.");

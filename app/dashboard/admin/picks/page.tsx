@@ -93,13 +93,28 @@ export default function AdminPicksPage() {
     try {
       setSavingPickId(pickId);
 
-      const { error } = await supabase
-        .from('picks')
-        .update({ chosen_winner: newWinner })
-        .eq('id', pickId);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        console.error('Error updating pick as admin: missing session token');
+        return;
+      }
 
-      if (error) {
-        console.error('Error updating pick as admin:', error.message);
+      const res = await fetch('/api/admin/picks/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          pickId,
+          chosenWinner: newWinner,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        console.error('Error updating pick as admin:', json?.error ?? `(${res.status}) Failed`);
         return;
       }
 
