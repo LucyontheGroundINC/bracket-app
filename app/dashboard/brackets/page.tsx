@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { isAdminEmail } from '@/lib/admin';
 import Image from 'next/image';
@@ -120,6 +120,44 @@ export default function BracketPage() {
   // Lock state
   const [isLocked, setIsLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  const desktopScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncLockRef = useRef(false);
+  const [desktopScrollWidth, setDesktopScrollWidth] = useState(0);
+
+  const syncFromMainScroll = () => {
+    if (syncLockRef.current) return;
+    if (!mainScrollRef.current || !desktopScrollRef.current) return;
+    syncLockRef.current = true;
+    desktopScrollRef.current.scrollLeft = mainScrollRef.current.scrollLeft;
+    syncLockRef.current = false;
+  };
+
+  const syncFromDesktopScroll = () => {
+    if (syncLockRef.current) return;
+    if (!mainScrollRef.current || !desktopScrollRef.current) return;
+    syncLockRef.current = true;
+    mainScrollRef.current.scrollLeft = desktopScrollRef.current.scrollLeft;
+    syncLockRef.current = false;
+  };
+
+  useEffect(() => {
+    const updateDesktopScrollWidth = () => {
+      const el = mainScrollRef.current;
+      if (!el) {
+        setDesktopScrollWidth(0);
+        return;
+      }
+      setDesktopScrollWidth(el.scrollWidth);
+    };
+
+    updateDesktopScrollWidth();
+    window.addEventListener('resize', updateDesktopScrollWidth);
+
+    return () => {
+      window.removeEventListener('resize', updateDesktopScrollWidth);
+    };
+  }, [matches.length, isMobile, viewMode]);
 
   // ------------------ Detect mobile + default view mode ------------------
   useEffect(() => {
@@ -1291,7 +1329,7 @@ export default function BracketPage() {
       {isMobile && viewMode === 'guided' ? (
         <div className="pb-10">{renderMobileBracket()}</div>
       ) : (
-        <div className="overflow-x-auto">
+        <div ref={mainScrollRef} onScroll={syncFromMainScroll} className="overflow-x-auto">
           <div className="min-w-[2300px] mx-auto grid grid-cols-[1fr_auto_1fr] gap-12 items-stretch">
             {/* Left stack: East + West */}
             <div className="relative flex flex-col gap-10">
@@ -1318,6 +1356,18 @@ export default function BracketPage() {
           </div>
         </div>
       )}
+
+      {!isMobile && desktopScrollWidth > 0 ? (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#0A2041]/10 bg-[#F9DCD8]/95 backdrop-blur-sm px-4 py-2">
+          <div
+            ref={desktopScrollRef}
+            onScroll={syncFromDesktopScroll}
+            className="mx-auto max-w-6xl overflow-x-auto"
+          >
+            <div style={{ width: desktopScrollWidth, height: 1 }} />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
