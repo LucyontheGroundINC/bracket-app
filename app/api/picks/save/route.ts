@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { db } from "@/db/client";
-import { sql } from "drizzle-orm";
+import { pool } from "@/db";
+
+export const runtime = "nodejs";
 
 type Body = {
   matchId?: string;
@@ -24,6 +25,19 @@ function getAuthClient() {
   return createClient(url, anonKey, { auth: { persistSession: false } });
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(label)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const authClient = getAuthClient();
@@ -36,7 +50,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing bearer token" }, { status: 401 });
     }
 
-    const authRes = await authClient.auth.getUser(token);
+    const authRes = await withTimeout(authClient.auth.getUser(token), 5000, "Auth request timed out");
     const authUser = authRes.data.user;
 
     if (authRes.error || !authUser) {
@@ -54,34 +68,35 @@ export async function POST(req: Request) {
       );
     }
 
-    const matchRows = (await db.execute(sql`
-      SELECT id, tournament_id
-      FROM public.matches
-      WHERE id = ${matchId}
-      LIMIT 1
-    `)) as Array<{ id: string; tournament_id: number | null }>;
+    const matchLookup = await pool.query<{
+      id: string;
+      tournament_id: number | null;
+      is_locked_manual: boolean | null;
+      lock_at: string | null;
+    }>(
+      `
+        SELECT
+          m.id,
+          m.tournament_id,
+          t.is_locked_manual,
+          t.lock_at
+        FROM public.matches m
+        LEFT JOIN public.tournaments t ON t.id = m.tournament_id
+        WHERE m.id = $1
+        LIMIT 1
+      `,
+      [matchId]
+    );
 
-    const matchRow = Array.isArray(matchRows) ? matchRows[0] : null;
+    const matchRow = matchLookup.rows[0] ?? null;
 
     if (!matchRow) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    const tournamentId =
-      typeof matchRow.tournament_id === "number" ? matchRow.tournament_id : null;
-
-    if (tournamentId !== null) {
-      const tournamentRows = (await db.execute(sql`
-        SELECT is_locked_manual, lock_at
-        FROM public.tournaments
-        WHERE id = ${tournamentId}
-        LIMIT 1
-      `)) as Array<{ is_locked_manual: boolean | null; lock_at: string | null }>;
-
-      const tournament = Array.isArray(tournamentRows) ? tournamentRows[0] : null;
-
-      const isManualLock = !!tournament?.is_locked_manual;
-      const lockAt = tournament?.lock_at ? new Date(tournament.lock_at) : null;
+    if (typeof matchRow.tournament_id === "number") {
+      const isManualLock = !!matchRow.is_locked_manual;
+      const lockAt = matchRow.lock_at ? new Date(matchRow.lock_at) : null;
       const isTimeLock = !!lockAt && lockAt <= new Date();
 
       if (isManualLock || isTimeLock) {
@@ -91,15 +106,18 @@ export async function POST(req: Request) {
 
     const uid = authUser.id;
 
-    const upsertRows = (await db.execute(sql`
-      INSERT INTO public.picks (user_id, match_id, chosen_winner)
-      VALUES (${uid}, ${matchId}, ${chosenWinner})
-      ON CONFLICT (user_id, match_id)
-      DO UPDATE SET chosen_winner = EXCLUDED.chosen_winner
-      RETURNING id
-    `)) as Array<{ id: string | number }>;
+    const upsert = await pool.query<{ id: string | number }>(
+      `
+        INSERT INTO public.picks (user_id, match_id, chosen_winner)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id, match_id)
+        DO UPDATE SET chosen_winner = EXCLUDED.chosen_winner
+        RETURNING id
+      `,
+      [uid, matchId, chosenWinner]
+    );
 
-    const savedId = Array.isArray(upsertRows) && upsertRows[0] ? upsertRows[0].id : null;
+    const savedId = upsert.rows[0]?.id ?? null;
     return NextResponse.json({ ok: true, id: savedId });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
