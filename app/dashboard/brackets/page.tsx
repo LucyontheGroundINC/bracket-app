@@ -533,52 +533,31 @@ export default function BracketPage() {
     }
 
     const persistPick = async (): Promise<string | null> => {
-      const upsertAttempt = await supabase
-        .from('picks')
-        .upsert(
-          { user_id: userId, match_id: matchId, chosen_winner: winner },
-          { onConflict: 'user_id,match_id' }
-        )
-        .select('id');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
 
-      if (!upsertAttempt.error) return null;
-
-      const updateAttempt = await supabase
-        .from('picks')
-        .update({ chosen_winner: winner })
-        .eq('user_id', userId)
-        .eq('match_id', matchId)
-        .select('id');
-
-      if (!updateAttempt.error && Array.isArray(updateAttempt.data) && updateAttempt.data.length > 0) {
-        return null;
+      if (!accessToken) {
+        return 'Your session expired. Please sign in again.';
       }
 
-      const insertAttempt = await supabase
-        .from('picks')
-        .insert({ user_id: userId, match_id: matchId, chosen_winner: winner });
+      const res = await fetch('/api/picks/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          matchId,
+          chosenWinner: winner,
+        }),
+      });
 
-      if (!insertAttempt.error) return null;
-
-      const insertMessage = insertAttempt.error.message.toLowerCase();
-      const mightBeRace = insertMessage.includes('duplicate') || insertMessage.includes('unique');
-
-      if (mightBeRace) {
-        const retryUpdate = await supabase
-          .from('picks')
-          .update({ chosen_winner: winner })
-          .eq('user_id', userId)
-          .eq('match_id', matchId)
-          .select('id');
-
-        if (!retryUpdate.error && Array.isArray(retryUpdate.data) && retryUpdate.data.length > 0) {
-          return null;
-        }
-
-        if (retryUpdate.error) return retryUpdate.error.message;
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        return json?.error ?? 'Failed to save pick';
       }
 
-      return insertAttempt.error.message;
+      return null;
     };
 
     try {
