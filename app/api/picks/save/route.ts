@@ -25,6 +25,16 @@ function getAuthClient() {
   return createClient(url, anonKey, { auth: { persistSession: false } });
 }
 
+function isTransientAuthError(message: string | undefined): boolean {
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("fetch failed") ||
+    m.includes("network") ||
+    m.includes("timeout") ||
+    m.includes("timed out")
+  );
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -53,8 +63,18 @@ export async function POST(req: Request) {
     const authRes = await withTimeout(authClient.auth.getUser(token), 5000, "Auth request timed out");
     const authUser = authRes.data.user;
 
-    if (authRes.error || !authUser) {
-      return NextResponse.json({ error: authRes.error?.message ?? "Unauthorized" }, { status: 401 });
+    if (authRes.error) {
+      if (isTransientAuthError(authRes.error.message)) {
+        return NextResponse.json(
+          { error: "Auth provider temporarily unavailable. Please retry." },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: authRes.error.message }, { status: 401 });
+    }
+
+    if (!authUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = (await req.json().catch(() => ({}))) as Body;

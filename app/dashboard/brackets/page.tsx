@@ -615,8 +615,19 @@ export default function BracketPage() {
     }
 
     const persistPick = async (): Promise<string | null> => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
+      const getAccessToken = async (): Promise<string | null> => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        let token = sessionData.session?.access_token ?? null;
+
+        if (!token) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          token = refreshed.session?.access_token ?? null;
+        }
+
+        return token;
+      };
+
+      let accessToken = await getAccessToken();
 
       if (!accessToken) {
         return 'Your session expired. Please sign in again.';
@@ -647,6 +658,15 @@ export default function BracketPage() {
           }
 
           if (res.ok) return null;
+
+          if (res.status === 401) {
+            const refreshedToken = await getAccessToken();
+            if (refreshedToken && refreshedToken !== accessToken) {
+              accessToken = refreshedToken;
+              continue;
+            }
+            return '(401) Your session expired. Please sign in again.';
+          }
 
           const detail = json?.error ?? rawText?.trim() ?? 'Failed to save pick';
           const isRetryable = res.status >= 500 && res.status < 600;
