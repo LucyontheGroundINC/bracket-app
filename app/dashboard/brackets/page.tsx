@@ -532,21 +532,77 @@ export default function BracketPage() {
       return;
     }
 
-    try {
-      setSavingPickId(matchId);
-
-      // Optimistic UI
-      setPicks((prev) => ({ ...prev, [matchId]: winner }));
-
-      const { error } = await supabase
+    const persistPick = async (): Promise<string | null> => {
+      const upsertAttempt = await supabase
         .from('picks')
         .upsert(
           { user_id: userId, match_id: matchId, chosen_winner: winner },
           { onConflict: 'user_id,match_id' }
-        );
+        )
+        .select('id');
 
-      if (error) {
-        console.error('Error saving pick:', error.message);
+      if (!upsertAttempt.error) return null;
+
+      const updateAttempt = await supabase
+        .from('picks')
+        .update({ chosen_winner: winner })
+        .eq('user_id', userId)
+        .eq('match_id', matchId)
+        .select('id');
+
+      if (!updateAttempt.error && Array.isArray(updateAttempt.data) && updateAttempt.data.length > 0) {
+        return null;
+      }
+
+      const insertAttempt = await supabase
+        .from('picks')
+        .insert({ user_id: userId, match_id: matchId, chosen_winner: winner });
+
+      if (!insertAttempt.error) return null;
+
+      const insertMessage = insertAttempt.error.message.toLowerCase();
+      const mightBeRace = insertMessage.includes('duplicate') || insertMessage.includes('unique');
+
+      if (mightBeRace) {
+        const retryUpdate = await supabase
+          .from('picks')
+          .update({ chosen_winner: winner })
+          .eq('user_id', userId)
+          .eq('match_id', matchId)
+          .select('id');
+
+        if (!retryUpdate.error && Array.isArray(retryUpdate.data) && retryUpdate.data.length > 0) {
+          return null;
+        }
+
+        if (retryUpdate.error) return retryUpdate.error.message;
+      }
+
+      return insertAttempt.error.message;
+    };
+
+    try {
+      setSavingPickId(matchId);
+
+      const previousWinner = picks[matchId] ?? null;
+
+      // Optimistic UI
+      setPicks((prev) => ({ ...prev, [matchId]: winner }));
+
+      const saveError = await persistPick();
+
+      if (saveError) {
+        console.error('Error saving pick:', saveError);
+        setPicks((prev) => {
+          const next = { ...prev };
+          if (previousWinner === null) {
+            delete next[matchId];
+          } else {
+            next[matchId] = previousWinner;
+          }
+          return next;
+        });
+        alert(`Could not save your pick. ${saveError}`);
         return;
       }
 
