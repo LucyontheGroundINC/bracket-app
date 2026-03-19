@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { pool } from "@/db";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,11 @@ function isTransientAuthError(message: string | undefined): boolean {
     m.includes("timeout") ||
     m.includes("timed out")
   );
+}
+
+function isPermissionPolicyError(message: string | undefined): boolean {
+  const m = (message ?? "").toLowerCase();
+  return m.includes("row-level security") || m.includes("policy") || m.includes("permission");
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -126,18 +132,48 @@ export async function POST(req: Request) {
 
     const uid = authUser.id;
 
-    const upsert = await pool.query<{ id: string | number }>(
-      `
-        INSERT INTO public.picks (user_id, match_id, chosen_winner)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, match_id)
-        DO UPDATE SET chosen_winner = EXCLUDED.chosen_winner
-        RETURNING id
-      `,
-      [uid, matchId, chosenWinner]
-    );
+    let savedId: string | number | null = null;
 
-    const savedId = upsert.rows[0]?.id ?? null;
+    try {
+      const upsert = await pool.query<{ id: string | number }>(
+        `
+          INSERT INTO public.picks (user_id, match_id, chosen_winner)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (user_id, match_id)
+          DO UPDATE SET chosen_winner = EXCLUDED.chosen_winner
+          RETURNING id
+        `,
+        [uid, matchId, chosenWinner]
+      );
+
+      savedId = upsert.rows[0]?.id ?? null;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
+
+      if (!isPermissionPolicyError(message) || !supabaseAdmin) {
+        throw e;
+      }
+
+      const fallback = await supabaseAdmin
+        .from("picks")
+        .upsert(
+          {
+            user_id: uid,
+            match_id: matchId,
+            chosen_winner: chosenWinner,
+          },
+          { onConflict: "user_id,match_id" }
+        )
+        .select("id")
+        .maybeSingle();
+
+      if (fallback.error) {
+        throw new Error(fallback.error.message);
+      }
+
+      savedId = fallback.data?.id ?? null;
+    }
+
     return NextResponse.json({ ok: true, id: savedId });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : typeof e === "string" ? e : "Unknown error";
