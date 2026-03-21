@@ -46,11 +46,11 @@ export async function GET(req: Request) {
         ? Number(tournamentIdParam)
         : null;
 
-    // 1) Load matches that have winners set
+    // 1) Load all matches for the tournament scope
     let matchesQuery = supabaseAdmin
       .from("matches")
       .select("id, round, winner")
-      .not("winner", "is", null);
+      .neq("id", "00000000-0000-0000-0000-000000000000");
 
     if (tournamentId !== null) {
       matchesQuery = matchesQuery.eq("tournament_id", tournamentId);
@@ -66,21 +66,19 @@ export async function GET(req: Request) {
     const matchRows = (matches ?? []) as MatchRow[];
     if (matchRows.length === 0) return NextResponse.json([]);
 
+    const allMatchIds = matchRows.map((m) => String(m.id));
+
     const matchMeta = new Map<string, { round: number; winner: "team1" | "team2" }>();
     for (const m of matchRows) {
       if (!m.winner) continue;
       matchMeta.set(String(m.id), { round: m.round ?? 1, winner: m.winner });
     }
 
-    if (matchMeta.size === 0) return NextResponse.json([]);
-
-    const matchIds = Array.from(matchMeta.keys());
-
-    // 2) Load picks for those matches
+    // 2) Load picks for all matches in scope so users with 0 points are still listed
     const { data: picks, error: picksError } = await supabaseAdmin
       .from("picks")
       .select("user_id, match_id, chosen_winner")
-      .in("match_id", matchIds);
+      .in("match_id", allMatchIds);
 
     if (picksError) {
       console.error("[leaderboard] Error loading picks:", picksError);
@@ -91,7 +89,15 @@ export async function GET(req: Request) {
     if (pickRows.length === 0) return NextResponse.json([]);
 
     // 3) Aggregate score + correct picks per user
+    // Start by registering every user that has at least one pick in scope.
     const totalsByUser = new Map<string, { totalScore: number; correctCount: number }>();
+
+    for (const p of pickRows) {
+      const userId = String(p.user_id);
+      if (!totalsByUser.has(userId)) {
+        totalsByUser.set(userId, { totalScore: 0, correctCount: 0 });
+      }
+    }
 
     for (const p of pickRows) {
       const meta = matchMeta.get(String(p.match_id));
@@ -102,7 +108,6 @@ export async function GET(req: Request) {
 
       const points = roundPoints(meta.round);
       const userId = String(p.user_id);
-
       const prev = totalsByUser.get(userId) ?? { totalScore: 0, correctCount: 0 };
       prev.totalScore += points;
       prev.correctCount += 1;
