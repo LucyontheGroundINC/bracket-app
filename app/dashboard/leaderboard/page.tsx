@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
@@ -173,6 +173,21 @@ export default function LeaderboardPage() {
 
   const prevRanks = previousRanksRef.current;
 
+  const myRowIndex = useMemo(() => {
+    if (!currentUserId) return -1;
+    return rows.findIndex((r) => r.userId === currentUserId);
+  }, [rows, currentUserId]);
+
+  const displayRows = useMemo(() => {
+    const top30 = rows.slice(0, 30);
+    return top30;
+  }, [rows]);
+
+  const userRow = useMemo(() => {
+    if (myRowIndex < 30 || myRowIndex < 0) return null;
+    return rows[myRowIndex] ?? null;
+  }, [rows, myRowIndex]);
+
   // ------------------ Render ------------------
   return (
     <div className="min-h-screen bg-[#F9DCD8] text-[#0A2041] pt-24 pb-10 px-4">
@@ -222,7 +237,7 @@ export default function LeaderboardPage() {
                 here.
               </motion.div>
             ) : (
-              rows.map((row, index) => {
+              displayRows.map((row, index) => {
                 const rank = index + 1;
                 const isMe = !!currentUserId && row.userId === currentUserId;
 
@@ -280,6 +295,41 @@ export default function LeaderboardPage() {
               })
             )}
           </AnimatePresence>
+
+          {userRow ? (
+            <>
+              <div className="px-4 py-3 border-t border-[#F5B8B0]/60 bg-[#F9DCD8]/60 text-center text-xs text-[#0A2041]/70">
+                ... and {myRowIndex - 30} more players ...
+              </div>
+              <div className="px-4 py-3 flex items-center text-sm border-t border-[#FEE689] bg-[#FEE689]/50">
+                <div className="w-12 flex items-center gap-1">
+                  <span className="font-semibold text-[#0A2041]">{myRowIndex + 1}</span>
+                </div>
+
+                <div className="flex-1 flex items-center gap-3 min-w-0">
+                  <Avatar
+                    name={userRow.displayName ?? userRow.email ?? "Player"}
+                    src={userRow.avatarUrl}
+                  />
+
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">
+                      {userRow.displayName || userRow.email || "Unknown player"}
+                      <span className="ml-2 text-[11px] text-[#0A2041]/70">(you)</span>
+                    </div>
+
+                    {userRow.displayName && userRow.email ? (
+                      <div className="text-[11px] text-[#0A2041]/50 truncate">{userRow.email}</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="w-20 text-right text-[#0A2041]/80">{userRow.correctCount}</div>
+
+                <div className="w-24 text-right font-semibold text-[#0A2041]">{userRow.totalScore}</div>
+              </div>
+            </>
+          ) : null}
         </div>
       </main>
     </div>
