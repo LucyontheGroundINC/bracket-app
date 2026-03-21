@@ -31,6 +31,15 @@ type UserScoreRow = {
   correct_picks: number | null;
 };
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 // GET /api/scores/leaderboard?tournamentId=...
 export async function GET(req: Request) {
   try {
@@ -164,22 +173,25 @@ export async function GET(req: Request) {
 
     // 3.5) Exclude admin users from public leaderboard
     const candidateUserIds = Array.from(totalsByUser.keys());
-    const { data: adminProfiles, error: adminProfilesError } = await supabaseAdmin
-      .from("profiles")
-      .select("user_id, is_admin")
-      .in("user_id", candidateUserIds)
-      .eq("is_admin", true);
+    const adminUserIds = new Set<string>();
+    for (const userIdBatch of chunkArray(candidateUserIds, 150)) {
+      const { data: adminProfiles, error: adminProfilesError } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id, is_admin")
+        .in("user_id", userIdBatch)
+        .eq("is_admin", true);
 
-    if (adminProfilesError) {
-      console.warn("[leaderboard] Could not load admin profile flags:", adminProfilesError);
-    } else {
-      const adminUserIds = new Set(
-        (adminProfiles ?? []).map((row) => String((row as { user_id: string | number }).user_id))
-      );
-
-      for (const adminUserId of adminUserIds) {
-        totalsByUser.delete(adminUserId);
+      if (adminProfilesError) {
+        console.warn("[leaderboard] Could not load admin profile flags:", adminProfilesError);
+      } else {
+        for (const row of (adminProfiles ?? []) as Array<{ user_id: string | number }>) {
+          adminUserIds.add(String(row.user_id));
+        }
       }
+    }
+
+    for (const adminUserId of adminUserIds) {
+      totalsByUser.delete(adminUserId);
     }
 
     if (totalsByUser.size === 0) return NextResponse.json([]);
@@ -188,42 +200,46 @@ export async function GET(req: Request) {
     const userIds = Array.from(totalsByUser.keys());
     const userInfo = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
 
-    const { data: dbUsers, error: dbUsersError } = await supabaseAdmin
-      .from("users")
-      .select("id, display_name, avatar_url")
-      .in("id", userIds);
+    for (const userIdBatch of chunkArray(userIds, 150)) {
+      const { data: dbUsers, error: dbUsersError } = await supabaseAdmin
+        .from("users")
+        .select("id, display_name, avatar_url")
+        .in("id", userIdBatch);
 
-    if (dbUsersError) {
-      console.warn("[leaderboard] Could not load users:", dbUsersError);
-    } else {
-      for (const raw of (dbUsers ?? []) as UserRow[]) {
-        const id = String(raw.id);
-        userInfo.set(id, {
-          displayName: raw.display_name?.trim() || null,
-          avatarUrl: raw.avatar_url ?? null,
-        });
+      if (dbUsersError) {
+        console.warn("[leaderboard] Could not load users:", dbUsersError);
+      } else {
+        for (const raw of (dbUsers ?? []) as UserRow[]) {
+          const id = String(raw.id);
+          userInfo.set(id, {
+            displayName: raw.display_name?.trim() || null,
+            avatarUrl: raw.avatar_url ?? null,
+          });
+        }
       }
     }
 
-    const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
-      .from("profiles")
-      .select("user_id, display_name, avatar_url")
-      .in("user_id", userIds);
+    for (const userIdBatch of chunkArray(userIds, 150)) {
+      const { data: dbProfiles, error: dbProfilesError } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", userIdBatch);
 
-    if (dbProfilesError) {
-      console.warn("[leaderboard] Could not load profiles:", dbProfilesError);
-    } else {
-      for (const raw of (dbProfiles ?? []) as Array<{
-        user_id: string | number;
-        display_name: string | null;
-        avatar_url: string | null;
-      }>) {
-        const id = String(raw.user_id);
-        const existing = userInfo.get(id);
-        userInfo.set(id, {
-          displayName: existing?.displayName ?? raw.display_name?.trim() ?? null,
-          avatarUrl: existing?.avatarUrl ?? raw.avatar_url ?? null,
-        });
+      if (dbProfilesError) {
+        console.warn("[leaderboard] Could not load profiles:", dbProfilesError);
+      } else {
+        for (const raw of (dbProfiles ?? []) as Array<{
+          user_id: string | number;
+          display_name: string | null;
+          avatar_url: string | null;
+        }>) {
+          const id = String(raw.user_id);
+          const existing = userInfo.get(id);
+          userInfo.set(id, {
+            displayName: existing?.displayName ?? raw.display_name?.trim() ?? null,
+            avatarUrl: existing?.avatarUrl ?? raw.avatar_url ?? null,
+          });
+        }
       }
     }
 
