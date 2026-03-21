@@ -249,9 +249,10 @@ export async function GET(req: Request) {
     const leaderboard = Array.from(totalsByUser.entries())
       .map(([userId, { totalScore, correctCount }]) => {
         const info = userInfo.get(userId) ?? { displayName: null, avatarUrl: null };
+        const fallbackName = `Player ${userId.slice(0, 8)}`;
         return {
           userId,
-          displayName: info.displayName,
+          displayName: info.displayName ?? fallbackName,
           avatarUrl: info.avatarUrl,
           totalScore,
           correctCount,
