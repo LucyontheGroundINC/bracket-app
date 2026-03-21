@@ -111,6 +111,28 @@ export async function GET(req: Request) {
 
     if (totalsByUser.size === 0) return NextResponse.json([]);
 
+    // 3.5) Exclude admin users from public leaderboard
+    const candidateUserIds = Array.from(totalsByUser.keys());
+    const { data: adminProfiles, error: adminProfilesError } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id, is_admin")
+      .in("user_id", candidateUserIds)
+      .eq("is_admin", true);
+
+    if (adminProfilesError) {
+      console.warn("[leaderboard] Could not load admin profile flags:", adminProfilesError);
+    } else {
+      const adminUserIds = new Set(
+        (adminProfiles ?? []).map((row) => String((row as { user_id: string | number }).user_id))
+      );
+
+      for (const adminUserId of adminUserIds) {
+        totalsByUser.delete(adminUserId);
+      }
+    }
+
+    if (totalsByUser.size === 0) return NextResponse.json([]);
+
     // 4) Look up display names + avatars (users first, profiles fallback)
     const userIds = Array.from(totalsByUser.keys());
     const userInfo = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
